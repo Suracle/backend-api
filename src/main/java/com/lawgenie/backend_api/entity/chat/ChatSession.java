@@ -28,6 +28,9 @@ public class ChatSession extends BaseEntity {
   @Column(name = "session_type", length = 20)
   private ChatSessionType sessionType;
 
+  @Column(name = "language", length = 5, nullable = false)
+  private String language;
+
   @Enumerated(EnumType.STRING)
   @Column(length = 20)
   private ChatSessionStatus status;

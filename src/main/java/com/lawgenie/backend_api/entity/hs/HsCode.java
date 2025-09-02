@@ -17,11 +17,11 @@ import java.time.LocalDateTime;
 public class HsCode extends BaseEntity {
 
   @Id
-  @Column(name = "hs_code", length = 15)
+  @Column(name = "hs_code", length = 20)
   private String hsCode;
 
   @Lob
-  @Column(name = "description")
+  @Column(name = "description", nullable = false)
   private String description;
 
   @Column(name = "us_tariff_rate", precision = 5, scale = 4)

@@ -38,4 +38,14 @@ public class ProductInquiry extends BaseEntity {
   @Lob
   @Column(name = "ai_response")
   private String aiResponse;
+
+  @Lob
+  @Column(name = "response_sources", columnDefinition = "json")
+  private String responseSources;
+
+  @Column(name = "from_cache", nullable = false)
+  private Boolean fromCache;
+
+  @Column(name = "response_time_ms")
+  private Integer responseTimeMs;
 }

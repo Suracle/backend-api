@@ -31,6 +31,9 @@ public class User extends BaseEntity {
   @Column(name = "user_name", length = 100)
   private String userName;
 
+  @Column(name = "preferred_language", length = 5)
+  private String preferredLanguage;
+
   @Column(name = "is_active", nullable = false)
   private Boolean isActive;
 }
