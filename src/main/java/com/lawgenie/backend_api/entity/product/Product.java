@@ -26,14 +26,14 @@ public class Product extends BaseEntity {
   @JoinColumn(name = "seller_id", nullable = false)
   private User seller;
 
-  @Column(name = "product_id", nullable = false, unique = true, length = 20)
+  @Column(name = "product_id", nullable = false, unique = true, length = 50)
   private String productId;
 
   @Column(name = "product_name", nullable = false, length = 255)
   private String productName;
 
   @Lob
-  @Column(name = "description")
+  @Column(name = "description", nullable = false)
   private String description;
 
   @Column(precision = 19, scale = 4)
@@ -45,8 +45,8 @@ public class Product extends BaseEntity {
   @Column(name = "origin_country", length = 3)
   private String originCountry;
 
-  @Column(name = "hs_code", length = 15)
-  private String hsCodeValue;
+  @Column(name = "hs_code", length = 20)
+  private String hsCode;
 
   @Enumerated(EnumType.STRING)
   @Column(length = 20)
@@ -57,5 +57,5 @@ public class Product extends BaseEntity {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "hs_code", referencedColumnName = "hs_code", insertable = false, updatable = false)
-  private HsCode hsCode;
+  private HsCode hsCodeEntity;
 }

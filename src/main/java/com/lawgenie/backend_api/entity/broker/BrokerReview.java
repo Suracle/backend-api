@@ -38,6 +38,9 @@ public class BrokerReview extends BaseEntity {
   @Column(name = "review_comment")
   private String reviewComment;
 
+  @Column(name = "suggested_hs_code", length = 20)
+  private String suggestedHsCode;
+
   @Column(name = "requested_at")
   private LocalDateTime requestedAt;
 

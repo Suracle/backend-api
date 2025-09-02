@@ -44,6 +44,10 @@ public class TariffCalculation {
   @Column(name = "total_with_tariff", precision = 19, scale = 4)
   private BigDecimal totalWithTariff;
 
+  @Lob
+  @Column(name = "calculation_sources", columnDefinition = "json")
+  private String calculationSources;
+
   @Column(name = "calculated_at", nullable = false)
   private LocalDateTime calculatedAt;
 }
