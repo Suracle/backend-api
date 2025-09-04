@@ -86,3 +86,7 @@ coverage/
 *.log
 *.pid
 docker-compose.override.yml
+
+# === Spring Boot Secrets ===
+application-secret.yml
+

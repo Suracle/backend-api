@@ -32,8 +32,7 @@ public class Product extends BaseEntity {
   @Column(name = "product_name", nullable = false, length = 255)
   private String productName;
 
-  @Lob
-  @Column(name = "description", nullable = false)
+  @Column(name = "description", nullable = false, columnDefinition = "TEXT")
   private String description;
 
   @Column(precision = 19, scale = 4)

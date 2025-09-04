@@ -34,8 +34,7 @@ public class BrokerReview extends BaseEntity {
   @Column(name = "review_status", length = 20)
   private ReviewStatus reviewStatus;
 
-  @Lob
-  @Column(name = "review_comment")
+  @Column(name = "review_comment", columnDefinition = "TEXT")
   private String reviewComment;
 
   @Column(name = "suggested_hs_code", length = 20)
