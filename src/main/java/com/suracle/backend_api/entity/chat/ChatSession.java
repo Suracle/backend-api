@@ -25,14 +25,14 @@ public class ChatSession extends BaseEntity {
   private User user;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "session_type", length = 20)
+  @Column(name = "session_type", length = 50)
   private ChatSessionType sessionType;
 
   @Column(name = "language", length = 5, nullable = false)
   private String language;
 
   @Enumerated(EnumType.STRING)
-  @Column(length = 20)
+  @Column(length = 50)
   private ChatSessionStatus status;
 
   @Column(name = "session_data", columnDefinition = "json")

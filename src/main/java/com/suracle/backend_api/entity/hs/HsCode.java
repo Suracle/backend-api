@@ -20,15 +20,13 @@ public class HsCode extends BaseEntity {
   @Column(name = "hs_code", length = 20)
   private String hsCode;
 
-  @Lob
-  @Column(name = "description", nullable = false)
+  @Column(name = "description", columnDefinition = "text", nullable = false)
   private String description;
 
   @Column(name = "us_tariff_rate", precision = 5, scale = 4)
   private BigDecimal usTariffRate;
 
-  @Lob
-  @Column(name = "requirements")
+  @Column(name = "requirements", columnDefinition = "text")
   private String requirements;
 
   @Column(name = "trade_agreements", columnDefinition = "json")

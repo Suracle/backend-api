@@ -43,8 +43,7 @@ public class AnalysisQueue {
   @Column(name = "completed_at")
   private LocalDateTime completedAt;
 
-  @Lob
-  @Column(name = "error_message")
+  @Column(name = "error_message", columnDefinition = "TEXT")
   private String errorMessage;
 
   @Column(name = "retry_count")
