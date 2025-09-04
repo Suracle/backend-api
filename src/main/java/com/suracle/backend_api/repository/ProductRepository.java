@@ -1,0 +1,62 @@
+package com.suracle.backend_api.repository;
+
+import com.suracle.backend_api.entity.product.Product;
+import com.suracle.backend_api.entity.product.enums.ProductStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface ProductRepository extends JpaRepository<Product, Integer> {
+
+    /**
+     * 상품 ID로 상품 조회
+     */
+    Optional<Product> findByProductId(String productId);
+
+    /**
+     * 판매자별 상품 목록 조회
+     */
+    Page<Product> findBySellerIdAndIsActiveTrue(Integer sellerId, Pageable pageable);
+
+    /**
+     * 활성화된 상품 목록 조회
+     */
+    Page<Product> findByIsActiveTrue(Pageable pageable);
+
+    /**
+     * 상품 상태별 조회
+     */
+    Page<Product> findByStatusAndIsActiveTrue(ProductStatus status, Pageable pageable);
+
+    /**
+     * 상품명으로 검색
+     */
+    @Query("SELECT p FROM Product p WHERE p.productName LIKE %:productName% AND p.isActive = true")
+    Page<Product> findByProductNameContaining(@Param("productName") String productName, Pageable pageable);
+
+    /**
+     * 원산지로 검색
+     */
+    Page<Product> findByOriginCountryAndIsActiveTrue(String originCountry, Pageable pageable);
+
+    /**
+     * HS코드로 검색
+     */
+    Page<Product> findByHsCodeAndIsActiveTrue(String hsCode, Pageable pageable);
+
+    /**
+     * 판매자별 상품 개수 조회
+     */
+    long countBySellerIdAndIsActiveTrue(Integer sellerId);
+
+    /**
+     * 상품 ID 중복 확인
+     */
+    boolean existsByProductId(String productId);
+}
