@@ -1,5 +1,14 @@
 package com.suracle.backend_api.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.suracle.backend_api.dto.user.LoginRequestDto;
 import com.suracle.backend_api.dto.user.LoginResponseDto;
 import com.suracle.backend_api.dto.user.SignupRequestDto;
@@ -8,9 +17,6 @@ import com.suracle.backend_api.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
@@ -72,6 +78,23 @@ public class UserController {
             return ResponseEntity.ok(isDuplicate);
         } catch (Exception e) {
             log.error("이메일 중복 확인 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * 로그아웃
+     * @return 로그아웃 결과
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout() {
+        try {
+            log.info("로그아웃 요청 받음");
+            // 현재는 단순히 성공 응답만 반환
+            // 추후 세션 무효화, 토큰 블랙리스트 등 추가 가능
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.error("로그아웃 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
