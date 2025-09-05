@@ -19,10 +19,6 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      */
     Optional<Product> findByProductId(String productId);
 
-    /**
-     * 판매자별 상품 목록 조회
-     */
-    Page<Product> findBySellerIdAndIsActiveTrue(Integer sellerId, Pageable pageable);
 
     /**
      * 활성화된 상품 목록 조회
@@ -35,9 +31,9 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
     Page<Product> findByStatusAndIsActiveTrue(ProductStatus status, Pageable pageable);
 
     /**
-     * 상품명으로 검색
+     * 상품명으로 검색 (대소문자 구분 없음)
      */
-    @Query("SELECT p FROM Product p WHERE p.productName LIKE %:productName% AND p.isActive = true")
+    @Query("SELECT p FROM Product p WHERE LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%')) AND p.isActive = true")
     Page<Product> findByProductNameContaining(@Param("productName") String productName, Pageable pageable);
 
     /**
@@ -59,4 +55,11 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      * 상품 ID 중복 확인
      */
     boolean existsByProductId(String productId);
+
+
+    /**
+     * 판매자별 상품 검색 (상품명 + 상태 필터, 대소문자 구분 없음)
+     */
+    @Query("SELECT p FROM Product p WHERE p.seller.id = :sellerId AND (:productName IS NULL OR :productName = '' OR LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%'))) AND p.isActive = true AND (:status IS NULL OR p.status = :status)")
+    Page<Product> findBySellerIdAndProductNameContainingAndStatusAndIsActiveTrue(@Param("sellerId") Integer sellerId, @Param("productName") String productName, @Param("status") ProductStatus status, Pageable pageable);
 }
