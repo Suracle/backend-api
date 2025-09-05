@@ -28,11 +28,9 @@ public class ProductAnalysisCache extends BaseEntity {
   @Column(name = "analysis_type", nullable = false, length = 50)
   private String analysisType; // 'hs_code', 'tariff_1qty', 'tariff_10qty', 'requirements', 'precedents'
 
-  @Lob
   @Column(name = "analysis_result", nullable = false, columnDefinition = "json")
   private String analysisResult;
 
-  @Lob
   @Column(name = "sources", nullable = false, columnDefinition = "json")
   private String sources;
 
