@@ -117,28 +117,6 @@ public class ProductController {
         }
     }
 
-    /**
-     * 판매자별 상품 목록 조회
-     * @param sellerId 판매자 ID
-     * @param page 페이지 번호 (기본값: 0)
-     * @param size 페이지 크기 (기본값: 10)
-     * @return 판매자 상품 목록
-     */
-    @GetMapping("/seller/{sellerId}")
-    public ResponseEntity<Page<ProductListResponseDto>> getProductsBySellerId(
-            @PathVariable Integer sellerId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        try {
-            log.info("판매자별 상품 목록 조회 요청 - 판매자 ID: {}, 페이지: {}", sellerId, page);
-            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-            Page<ProductListResponseDto> products = productService.getProductsBySellerId(sellerId, pageable);
-            return ResponseEntity.ok(products);
-        } catch (Exception e) {
-            log.error("판매자별 상품 목록 조회 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
 
     /**
      * 상품명으로 검색
@@ -159,6 +137,37 @@ public class ProductController {
             return ResponseEntity.ok(products);
         } catch (Exception e) {
             log.error("상품 검색 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+
+    /**
+     * 판매자별 상품 검색 (상품명 + 상태 필터)
+     * @param sellerId 판매자 ID
+     * @param productName 상품명
+     * @param status 상품 상태 (기본값: all)
+     * @param page 페이지 번호 (기본값: 0)
+     * @param size 페이지 크기 (기본값: 10)
+     * @return 검색된 상품 목록
+     */
+    @GetMapping("/seller/{sellerId}/search-filter")
+    public ResponseEntity<Page<ProductListResponseDto>> searchProductsBySellerIdAndNameAndStatus(
+            @PathVariable Integer sellerId,
+            @RequestParam(required = false) String productName,
+            @RequestParam(defaultValue = "all") String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            log.info("판매자별 상품 검색 요청 (상품명 + 상태 필터) - 판매자 ID: {}, 검색어: {}, 상태: {}, 페이지: {}", sellerId, productName, status, page);
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+            Page<ProductListResponseDto> products = productService.searchProductsBySellerIdAndNameAndStatus(sellerId, productName, status, pageable);
+            return ResponseEntity.ok(products);
+        } catch (IllegalArgumentException e) {
+            log.warn("잘못된 상태 필터: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        } catch (Exception e) {
+            log.error("판매자별 상품 검색 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

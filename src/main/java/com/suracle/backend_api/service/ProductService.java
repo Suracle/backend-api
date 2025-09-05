@@ -37,13 +37,6 @@ public interface ProductService {
      */
     void deleteProduct(String productId, Integer sellerId);
 
-    /**
-     * 판매자별 상품 목록 조회
-     * @param sellerId 판매자 ID
-     * @param pageable 페이징 정보
-     * @return 판매자 상품 목록
-     */
-    Page<ProductListResponseDto> getProductsBySellerId(Integer sellerId, Pageable pageable);
 
     /**
      * 상품명으로 검색
@@ -52,4 +45,15 @@ public interface ProductService {
      * @return 검색된 상품 목록
      */
     Page<ProductListResponseDto> searchProductsByName(String productName, Pageable pageable);
+
+
+    /**
+     * 판매자별 상품 검색 (상품명 + 상태 필터)
+     * @param sellerId 판매자 ID
+     * @param productName 상품명 (null이면 전체 상품명)
+     * @param status 상품 상태 (null이면 전체)
+     * @param pageable 페이징 정보
+     * @return 검색된 상품 목록
+     */
+    Page<ProductListResponseDto> searchProductsBySellerIdAndNameAndStatus(Integer sellerId, String productName, String status, Pageable pageable);
 }

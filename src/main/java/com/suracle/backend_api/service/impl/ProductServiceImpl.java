@@ -102,14 +102,6 @@ public class ProductServiceImpl implements ProductService {
         log.info("상품 삭제 완료 - 상품 ID: {}", productId);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Page<ProductListResponseDto> getProductsBySellerId(Integer sellerId, Pageable pageable) {
-        log.info("판매자별 상품 목록 조회 요청 - 판매자 ID: {}, 페이지: {}", sellerId, pageable.getPageNumber());
-
-        Page<Product> products = productRepository.findBySellerIdAndIsActiveTrue(sellerId, pageable);
-        return products.map(this::convertToProductListResponseDto);
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -117,6 +109,30 @@ public class ProductServiceImpl implements ProductService {
         log.info("상품명 검색 요청 - 검색어: {}, 페이지: {}", productName, pageable.getPageNumber());
 
         Page<Product> products = productRepository.findByProductNameContaining(productName, pageable);
+        return products.map(this::convertToProductListResponseDto);
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProductListResponseDto> searchProductsBySellerIdAndNameAndStatus(Integer sellerId, String productName, String status, Pageable pageable) {
+        log.info("판매자별 상품 검색 요청 (상품명 + 상태 필터) - 판매자 ID: {}, 검색어: {}, 상태: {}, 페이지: {}", sellerId, productName, status, pageable.getPageNumber());
+
+        // 상태 필터 처리
+        ProductStatus productStatus = null;
+        if (status != null && !status.equals("all") && !status.isEmpty()) {
+            try {
+                productStatus = ProductStatus.valueOf(status);
+            } catch (IllegalArgumentException e) {
+                log.warn("잘못된 상품 상태: {}", status);
+                throw new IllegalArgumentException("잘못된 상품 상태입니다: " + status);
+            }
+        }
+
+        // 검색어 처리 (null이거나 빈 문자열이면 전체 상품명으로 처리)
+        String searchTerm = (productName == null || productName.trim().isEmpty()) ? null : productName;
+
+        Page<Product> products = productRepository.findBySellerIdAndProductNameContainingAndStatusAndIsActiveTrue(sellerId, searchTerm, productStatus, pageable);
         return products.map(this::convertToProductListResponseDto);
     }
 
