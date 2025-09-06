@@ -1,11 +1,16 @@
 package com.suracle.backend_api.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suracle.backend_api.dto.product.ProductListResponseDto;
 import com.suracle.backend_api.dto.product.ProductRequestDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
+import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
+import com.suracle.backend_api.entity.cache.ProductAnalysisCache;
 import com.suracle.backend_api.entity.product.Product;
 import com.suracle.backend_api.entity.product.enums.ProductStatus;
 import com.suracle.backend_api.entity.user.User;
+import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
 import com.suracle.backend_api.repository.ProductRepository;
 import com.suracle.backend_api.repository.UserRepository;
 import com.suracle.backend_api.service.ProductService;
@@ -16,6 +21,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -26,6 +33,8 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public ProductResponseDto createProduct(ProductRequestDto productRequestDto, Integer sellerId) {
@@ -134,6 +143,44 @@ public class ProductServiceImpl implements ProductService {
 
         Page<Product> products = productRepository.findBySellerIdAndProductNameContainingAndStatusAndIsActiveTrue(sellerId, searchTerm, productStatus, pageable);
         return products.map(this::convertToProductListResponseDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PrecedentsResponseDto getProductPrecedents(String productId) {
+        log.info("상품 판례 분석 조회 요청 - 상품 ID: {}", productId);
+
+        // 상품 존재 확인
+        Product product = productRepository.findByProductId(productId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + productId));
+
+        // precedents 분석 결과 조회
+        ProductAnalysisCache precedentsCache = productAnalysisCacheRepository
+                .findByProductIdAndAnalysisType(product.getId(), "precedents")
+                .orElseThrow(() -> new IllegalArgumentException("해당 상품의 판례 분석 결과가 없습니다"));
+
+        try {
+            // JSON 분석 결과를 Map으로 파싱
+            Map<String, Object> analysisResult = objectMapper.readValue(
+                    precedentsCache.getAnalysisResult(), 
+                    Map.class
+            );
+
+            // PrecedentsResponseDto 생성
+            return PrecedentsResponseDto.builder()
+                    .similarProducts((List<String>) analysisResult.get("similar_products"))
+                    .approvalRate(((Number) analysisResult.get("approval_rate")).doubleValue())
+                    .commonIssues((List<String>) analysisResult.get("common_issues"))
+                    .successFactors((List<String>) analysisResult.get("success_factors"))
+                    
+                    .confidenceScore(precedentsCache.getConfidenceScore().doubleValue())
+                    .isValid(precedentsCache.getIsValid())
+                    .build();
+
+        } catch (JsonProcessingException e) {
+            log.error("판례 분석 결과 파싱 오류 - 상품 ID: {}", productId, e);
+            throw new RuntimeException("판례 분석 결과를 처리하는 중 오류가 발생했습니다", e);
+        }
     }
 
     /**
