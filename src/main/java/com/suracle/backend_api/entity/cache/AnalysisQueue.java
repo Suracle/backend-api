@@ -23,7 +23,6 @@ public class AnalysisQueue {
   @JoinColumn(name = "product_id", nullable = false)
   private Product product;
 
-  @Lob
   @Column(name = "analysis_types", nullable = false, columnDefinition = "json")
   private String analysisTypes; // ['tariff_1qty', 'tariff_10qty', 'requirements', 'precedents']
 

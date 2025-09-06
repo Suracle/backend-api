@@ -35,6 +35,7 @@ public class ChatSession extends BaseEntity {
   @Column(length = 50)
   private ChatSessionStatus status;
 
-  @Column(name = "session_data", columnDefinition = "json")
+  @Column(name = "session_data", columnDefinition = "text")
   private String sessionData;
+
 }
