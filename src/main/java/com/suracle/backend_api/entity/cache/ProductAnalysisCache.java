@@ -8,8 +8,8 @@ import lombok.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "product_analysis_cache", 
-       uniqueConstraints = @UniqueConstraint(columnNames = {"product_id", "analysis_type"}))
+@Table(name = "product_analysis_cache", uniqueConstraints = @UniqueConstraint(columnNames = { "product_id",
+    "analysis_type" }))
 @Getter
 @Setter
 @NoArgsConstructor
