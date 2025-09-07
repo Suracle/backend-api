@@ -2,6 +2,7 @@ package com.suracle.backend_api.service;
 
 import com.suracle.backend_api.dto.product.ProductListResponseDto;
 import com.suracle.backend_api.dto.product.ProductRequestDto;
+import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,4 +57,11 @@ public interface ProductService {
      * @return 검색된 상품 목록
      */
     Page<ProductListResponseDto> searchProductsBySellerIdAndNameAndStatus(Integer sellerId, String productName, String status, Pageable pageable);
+
+    /**
+     * 상품의 판례 분석 결과 조회
+     * @param productId 상품 ID
+     * @return 판례 분석 결과
+     */
+    PrecedentsResponseDto getProductPrecedents(String productId);
 }

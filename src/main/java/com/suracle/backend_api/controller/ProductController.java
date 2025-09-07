@@ -2,6 +2,7 @@ package com.suracle.backend_api.controller;
 
 import com.suracle.backend_api.dto.product.ProductListResponseDto;
 import com.suracle.backend_api.dto.product.ProductRequestDto;
+import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
 import com.suracle.backend_api.service.ProductService;
 import jakarta.validation.Valid;
@@ -169,6 +170,26 @@ public class ProductController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         } catch (Exception e) {
             log.error("판매자별 상품 검색 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * 상품의 판례 분석 결과 조회
+     * @param productId 상품 ID
+     * @return 판례 분석 결과
+     */
+    @GetMapping("/{productId}/precedents")
+    public ResponseEntity<PrecedentsResponseDto> getProductPrecedents(@PathVariable String productId) {
+        try {
+            log.info("상품 판례 분석 조회 요청 - 상품 ID: {}", productId);
+            PrecedentsResponseDto precedents = productService.getProductPrecedents(productId);
+            return ResponseEntity.ok(precedents);
+        } catch (IllegalArgumentException e) {
+            log.warn("판례 분석 조회 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception e) {
+            log.error("판례 분석 조회 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
