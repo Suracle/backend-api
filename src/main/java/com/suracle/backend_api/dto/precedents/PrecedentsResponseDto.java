@@ -12,10 +12,11 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PrecedentsResponseDto {
-    private List<String> similarProducts;
-    private Double approvalRate;
-    private List<String> commonIssues;
-    private List<String> successFactors;
+    private List<String> successCases;
+    private List<String> failureCases;
+    private List<String> actionableInsights;
+    private List<String> riskFactors;
+    private String recommendedAction;
     private Double confidenceScore;
     private Boolean isValid;
 }
