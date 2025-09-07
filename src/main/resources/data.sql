@@ -208,3 +208,128 @@ INSERT INTO chat_sessions (user_id, session_type, language, status, session_data
 
 -- Session 4: 구매자 - 에러로 인한 실패 세션
 (1, 'BUYER_PURCHASE_INQUIRY', 'en', 'FAILED', '{"flow_type": null, "product_mentioned": "Premium Body Lotion", "error_type": "product_not_found", "error_message": "Could not identify product from user input - product not in catalog", "retry_count": 2, "failed_at": "2024-09-04T13:20:00Z"}', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour');
+
+-- 8. 채팅 메시지(ChatMessage) 데이터 - 판매자/구매자 챗봇 로직 반영
+INSERT INTO chat_messages (session_id, sender_type, message_content, message_type, metadata, created_at) VALUES
+-- Session 1: 판매자 챗봇 - 기존 상품 관세 문의 플로우 (비타민C 세럼 - 상호관세 15%)
+(1, 'AI', '안녕하세요! 어떤 도움이 필요하신가요?', 'TEXT',
+ '{"language": "ko", "step": "main_menu", "user_type": "seller"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'USER', '기존 상품 문의', 'BUTTON',
+ '{"language": "ko", "selected": "existing_product", "user_type": "seller"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'AI', '상품명을 입력해주세요.', 'TEXT',
+ '{"language": "ko", "step": "product_identification", "input_type": "text"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'USER', 'Premium Vitamin C Serum', 'TEXT',
+ '{"language": "ko", "step": "product_name_input", "product_name": "Premium Vitamin C Serum"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'AI', 'Premium Vitamin C Serum이 맞나요? 20% L-Ascorbic Acid 함유 안티에이징 세럼이군요.', 'TEXT',
+ '{"language": "ko", "step": "product_confirmation", "product_id": "PROD-2024-001", "product_name": "Premium Vitamin C Serum"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'USER', '응, 맞아', 'BUTTON',
+ '{"language": "ko", "confirmed": true, "product_id": "PROD-2024-001"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'AI', '어떤 정보가 필요하신가요?', 'BUTTON_GROUP',
+ '{"language": "ko", "step": "query_type_selection", "options": ["HS코드", "관세", "요건", "판례"], "product_id": "PROD-2024-001"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'USER', '관세', 'BUTTON',
+ '{"language": "ko", "selected": "tariff", "product_id": "PROD-2024-001"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'AI', '구매 개수를 입력해주세요.', 'TEXT',
+ '{"language": "ko", "step": "quantity_input", "input_type": "number"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'USER', '50', 'TEXT',
+ '{"language": "ko", "quantity": 50, "product_id": "PROD-2024-001"}', NOW() - INTERVAL '3 hours'),
+
+(1, 'AI', '비타민C 세럼(HS 3304.99.50.00)은 현재 상호관세로 15%가 부과됩니다. 50개 수출시 총 FOB 가격 $2,600, 관세 $390이 추가되어 총 수입비용은 $2,990입니다. 화장품이므로 FDA 등록, 성분 안전성 평가, 21 CFR 701 라벨링 준수가 필요합니다.', 'TEXT',
+ '{"language": "ko", "sources": ["US_RETALIATORY_TARIFF", "HTSUS_3304.99.50.00"], "confidence": 0.98, "product_inquiry_id": 1, "tariff_applied": 390.0, "tariff_rate": 0.15}', NOW() - INTERVAL '3 hours'),
+
+(1, 'AI', '다른 정보가 더 필요하신가요?', 'BUTTON_GROUP',
+ '{"language": "ko", "step": "additional_actions", "options": ["HS코드", "요건", "판례", "처음으로"], "product_id": "PROD-2024-001"}', NOW() - INTERVAL '3 hours'),
+
+-- Session 2: 판매자 챗봇 - 기존 상품 판례 문의 플로우 (즉석라면 - 소고기 스프 문제)
+(2, 'AI', '안녕하세요! 어떤 도움이 필요하신가요?', 'TEXT', '{"language": "ko", "step": "main_menu", "user_type": "seller"}', NOW() - INTERVAL '2 hours'),
+(2, 'USER', '기존 상품 문의', 'BUTTON', '{"language": "ko", "selected": "existing_product", "user_type": "seller"}', NOW() - INTERVAL '2 hours'),
+(2, 'AI', '상품명을 입력해주세요.', 'TEXT', '{"language": "ko", "step": "product_identification", "input_type": "text"}', NOW() - INTERVAL '2 hours'),
+(2, 'USER', 'Premium Instant Ramyeon 4-Pack', 'TEXT', '{"language": "ko", "step": "product_name_input", "product_name": "Premium Instant Ramyeon 4-Pack"}', NOW() - INTERVAL '2 hours'),
+(2, 'AI', 'Premium Instant Ramyeon 4-Pack이 맞나요?', 'TEXT', '{"language": "ko", "step": "product_confirmation", "product_id": "PROD-2024-006", "product_name": "Premium Instant Ramyeon 4-Pack"}', NOW() - INTERVAL '2 hours'),
+(2, 'USER', '응, 맞아', 'BUTTON', '{"language": "ko", "confirmed": true, "product_id": "PROD-2024-006"}', NOW() - INTERVAL '2 hours'),
+(2, 'AI', '어떤 정보가 필요하신가요?', 'BUTTON_GROUP', '{"language": "ko", "step": "query_type_selection", "options": ["HS코드", "관세", "요건", "판례"], "product_id": "PROD-2024-006"}', NOW() - INTERVAL '2 hours'),
+(2, 'USER', '판례', 'BUTTON', '{"language": "ko", "selected": "precedents", "product_id": "PROD-2024-006"}', NOW() - INTERVAL '2 hours'),
+(2, 'AI', '이 라면에 소고기 추출물이 포함된 스프가 있다면, 미국은 한국산 소고기 제품 수입을 금지하고 있어, 소고기 스프가 포함된 라면은 100% 적발 시 폐기처분됩니다. 유사 제품들이 모두 통관 거부되었습니다.', 'TEXT', '{"language": "ko", "sources": ["USDA_BEEF_BAN", "CBP_Seizure_Records"], "confidence": 0.99, "product_inquiry_id": 2, "alert_level": "critical"}', NOW() - INTERVAL '2 hours'),
+(2, 'USER', '소고기 스프 때문에 문제될까요?', 'TEXT', '{"language": "ko", "additional_question": "beef_soup_concern", "product_id": "PROD-2024-006"}', NOW() - INTERVAL '15 minutes'),
+(2, 'AI', '네, USDA 규정상 한국산 소고기 및 소고기 추출물은 수입 금지 품목입니다. 8시간 우린 소뼈 추출물이 포함된 스프는 반드시 적발되며, FDA와 USDA가 공동으로 100% 검역합니다. 대안으로 소고기 성분을 제거한 버전 또는 식물성 대체재로 제품 수정이 필요합니다.', 'TEXT', '{"language": "ko", "step": "beef_restriction_details", "sources": ["USDA_Import_Ban", "9_CFR_94"], "confidence": 0.99, "recommendation": "product_reformulation"}', NOW() - INTERVAL '15 minutes'),
+
+-- Session 3: 구매자 챗봇 - 구매시 요 문의 플로우 (홍삼 추출액 - FDA Prior Notice)
+(3, 'AI', 'Hello! How can I help you with your food import inquiries today?', 'TEXT', '{"language": "en", "step": "greeting", "user_type": "buyer"}', NOW() - INTERVAL '1 hour'),
+(3, 'USER', 'I want to know about import requirements for Premium Red Ginseng Extract from Korea', 'TEXT', '{"language": "en", "intent": "requirements_inquiry", "product_mentioned": "Premium Red Ginseng Extract"}', NOW() - INTERVAL '1 hour'),
+(3, 'AI', 'I found the Premium Red Ginseng Extract in our catalog. This is a 6-year aged Korean red ginseng concentrated extract with 80mg ginsenosides per serving. As a dietary supplement, it has specific FDA requirements. Would you like to know the detailed import requirements?', 'TEXT', '{"language": "en", "step": "product_identification", "product_id": "PROD-2024-003", "confirmation_required": true}', NOW() - INTERVAL '1 hour'),
+(3, 'USER', 'Yes, please tell me all the requirements, especially about FDA notices', 'TEXT', '{"language": "en", "confirmed": true, "product_id": "PROD-2024-003", "inquiry_type": "requirements_and_prior_notice"}', NOW() - INTERVAL '1 hour'),
+(3, 'AI', E'For importing Premium Red Ginseng Extract to the US, you need:\n\n**Critical Requirement - FDA Prior Notice:**\nSince May 6, 2009, FDA requires Prior Notice for ALL food imports (including dietary supplements) unless specifically exempted. You must submit Prior Notice before the shipment arrives.\n\n**Exemptions:** Only personal use (not for sale/distribution) to yourself, friends, or family.\n\n**Other Requirements:**\n1) FDA facility registration for manufacturer\n2) DSHEA compliance for dietary supplements\n3) cGMP requirements (21 CFR 111)\n4) Nutritional supplement labeling\n5) Health claims substantiation\n6) Ginsenoside content verification\n\n**Important:** Commercial imports without Prior Notice will be refused entry.', 'TEXT', '{"language": "en", "sources": ["FDA_Prior_Notice_Rule", "21_CFR_1.276", "DSHEA_Requirements"], "confidence": 0.99, "product_inquiry_id": 3}', NOW() - INTERVAL '1 hour'),
+(3, 'USER', 'What happens if I forget to submit Prior Notice?', 'TEXT', '{"language": "en", "additional_request": "prior_notice_consequences", "product_id": "PROD-2024-003"}', NOW() - INTERVAL '1 hour'),
+(3, 'AI', E'If you forget Prior Notice, the consequences are severe:\n\n• **Automatic refusal of entry** - no exceptions\n• **Detention at port** until proper notice is filed\n• **Storage fees** accumulate daily\n• **Potential product spoilage** during detention\n• **Re-export or destruction** if notice issues cannot be resolved\n\n**Timeline:** Prior Notice must be submitted no more than 15 days before arrival and no less than:\n- 2 hours for road transport\n- 4 hours for air/rail transport  \n- 8 hours for water transport\n\nThe FDA system will not allow entry without valid Prior Notice confirmation number.', 'TEXT', '{"language": "en", "sources": ["FDA_Import_Procedures", "CBP_Entry_Requirements"], "confidence": 0.98, "additional_info": true}', NOW() - INTERVAL '1 hour'),
+(3, 'USER', 'Thank you, this is very helpful!', 'TEXT', '{"language": "en", "intent": "gratitude"}', NOW() - INTERVAL '1 hour'),
+(3, 'AI', 'You are welcome! Remember, Prior Notice is mandatory for all commercial food imports. I recommend setting up your FDA facility registration first, then submitting Prior Notice within the required timeframe for each shipment.', 'TEXT', '{"language": "en", "step": "closing", "offer_additional_help": true}', NOW() - INTERVAL '1 hour'),
+
+-- Session 4: 구매자 - 에러로 인한 실패 세션 (상품 미등록)
+(4, 'AI', 'Hello! How can I help you with your cosmetics import inquiries today?', 'TEXT', '{"language": "en", "step": "greeting", "user_type": "buyer"}', NOW() - INTERVAL '1 hour'),
+(4, 'USER', 'Hi, I want to know about importing Premium Body Lotion from Korea', 'TEXT', '{"language": "en", "intent": "product_inquiry", "product_mentioned": "Premium Body Lotion"}', NOW() - INTERVAL '1 hour'),
+(4, 'AI', 'I am searching for Premium Body Lotion in our product catalog...', 'TEXT', '{"language": "en", "step": "product_search", "search_query": "Premium Body Lotion"}', NOW() - INTERVAL '1 hour'),
+(4, 'AI', 'I could not find "Premium Body Lotion" in our current product catalog. Could you provide more details about the product, such as the manufacturer name, specific ingredients, or product code?', 'TEXT', '{"language": "en", "step": "clarification_request", "error_type": "product_not_found", "retry_attempt": 1}', NOW() - INTERVAL '1 hour'),
+(4, 'USER', 'It contains shea butter and jojoba oil, made by Korean cosmetics company', 'TEXT', '{"language": "en", "additional_details": "shea butter, jojoba oil, Korean manufacturer"}', NOW() - INTERVAL '1 hour'),
+(4, 'AI', E'Thank you for the additional details. I searched for Korean body lotions with shea butter and jojoba oil, but still cannot find this specific product in our registered catalog. This may be because:\n\n1) The product is not yet registered with our platform\n2) It may be listed under a different name\n3) The manufacturer has not submitted this product for analysis\n\nWould you like me to provide general import guidelines for Korean body lotions, or would you prefer to contact the manufacturer to register the product first?', 'TEXT', '{"language": "en", "step": "product_not_found_final", "error_type": "product_not_in_catalog", "suggested_actions": ["general_guidelines", "manufacturer_registration"], "failed_at": "2024-09-04T13:20:00Z"}', NOW() - INTERVAL '1 hour');
+
+-- 9. 상품 문의(ProductInquiry) 데이터 - 챗봇 플로우에 따른 구조화된 문의
+INSERT INTO product_inquiries (user_id, product_id, inquiry_type, inquiry_data, ai_response, response_sources, from_cache, response_time_ms, created_at, updated_at) VALUES 
+-- 판매자 관세 문의 (Session 1에서 생성 - 비타민C 세럼, 상호관세 15%)
+(2, 1, 'TARIFF', 
+'{"product": "Premium Vitamin C Serum", "unit_price": 45.00, "fob_price": 52.00, "quantity": 50, "destination": "US", "origin": "KOR", "hs_code": "3304.99.50.00", "user_flow": "existing_product_inquiry"}', 
+'비타민C 세럼(HS 3304.99.50.00)은 현재 상호관세로 15%가 부과됩니다. 50개 수출시 총 FOB 가격 $2,600, 관세 $390이 추가되어 총 수입비용은 $2,990입니다. 화장품이므로 FDA 등록, 성분 안전성 평가, 21 CFR 701 라벨링 준수가 필요합니다.', 
+'["US_RETALIATORY_TARIFF", "HTSUS_3304.99.50.00", "FDA_Cosmetic_Regulations"]', 
+false, 1650, NOW() - INTERVAL '3 hours', NOW() - INTERVAL '3 hours'),
+
+-- 판매자 판례 문의 (Session 2에서 생성 - 즉석라면, 소고기 스프 문제)
+(2, 6, 'PRECEDENTS', 
+'{"product": "Premium Instant Ramyeon 4-Pack", "ingredients": "beef bone extract soup", "processing": "8-hour simmering", "market": "US", "concern": "beef_import_ban", "user_flow": "existing_product_inquiry"}', 
+'이 라면에 소고기 추출물이 포함된 스프가 있다면, 미국은 한국산 소고기 제품 수입을 금지하고 있어, 소고기 스프가 포함된 라면은 100% 적발 시 폐기처분됩니다. 유사 제품들이 모두 통관 거부되었습니다. USDA 규정상 한국산 소고기 및 소고기 추출물은 수입 금지 품목입니다. 대안으로 소고기 성분을 제거한 버전 또는 식물성 대체재로 제품 수정이 필요합니다.', 
+'["USDA_BEEF_BAN", "CBP_Seizure_Records", "9_CFR_94", "USDA_Import_Ban"]', 
+false, 2280, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
+
+-- 구매자 요건 문의 (Session 3에서 생성 - 홍삼 추출액, FDA Prior Notice)
+(1, 3, 'REQUIREMENTS', 
+'{"product": "Premium Red Ginseng Extract", "type": "dietary_supplement", "ginsenosides": "80mg per serving", "market": "US", "concern": "prior_notice_requirements", "user_flow": "buyer_precaution_inquiry"}', 
+'For importing Premium Red Ginseng Extract to the US, you need: **Critical Requirement - FDA Prior Notice:** Since May 6, 2009, FDA requires Prior Notice for ALL food imports (including dietary supplements) unless specifically exempted. You must submit Prior Notice before the shipment arrives. **Exemptions:** Only personal use (not for sale/distribution) to yourself, friends, or family. **Other Requirements:** 1) FDA facility registration for manufacturer, 2) DSHEA compliance for dietary supplements, 3) cGMP requirements (21 CFR 111), 4) Nutritional supplement labeling, 5) Health claims substantiation, 6) Ginsenoside content verification. **Important:** Commercial imports without Prior Notice will be refused entry.', 
+'["FDA_Prior_Notice_Rule", "21_CFR_1.276", "DSHEA_Requirements", "FDA_Import_Procedures"]', 
+false, 2450, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour');
+
+-- 10. 관세 계산(TariffCalculation) 데이터 - ProductAnalysisCache 기반 계산
+INSERT INTO tariff_calculations (product_id, buyer_id, quantity, total_value, tariff_rate, tariff_amount, total_with_tariff, calculation_sources, calculated_at) VALUES 
+-- PROD-2024-001 (Premium Vitamin C Serum) - APPROVED, 상호관세 15%
+(1, 1, 1, 52.00, 0.1500, 7.80, 59.80, '["US_RETALIATORY_TARIFF", "HTSUS_3304.99.50.00", "BrokerReview_Approved"]', NOW() - INTERVAL '6 days'),
+(1, 1, 10, 520.00, 0.1500, 78.00, 598.00, '["US_RETALIATORY_TARIFF", "HTSUS_3304.99.50.00", "BrokerReview_Approved"]', NOW() - INTERVAL '6 days'),
+-- ChatMessage Session 1에서 판매자가 문의한 비타민C 세럼 관세 (50개)
+(1, 1, 50, 2600.00, 0.1500, 390.00, 2990.00, '["US_RETALIATORY_TARIFF", "HTSUS_3304.99.50.00", "BrokerReview_Approved"]', NOW() - INTERVAL '3 hours'),
+
+-- PROD-2024-002 (Hydrating Snail Cream) - REJECTED (HS코드 수정 후 재계산)
+(2, 1, 1, 38.50, 0.0000, 0.00, 38.50, '["KORUS_FTA", "HTSUS_3304.99.50.00", "BrokerReview_Corrected_HSCode"]', NOW() - INTERVAL '7 days'),
+(2, 1, 10, 385.00, 0.0000, 0.00, 385.00, '["KORUS_FTA", "HTSUS_3304.99.50.00", "BrokerReview_Corrected_HSCode"]', NOW() - INTERVAL '7 days'),
+
+-- PROD-2024-003 (Premium Red Ginseng Extract) - APPROVED
+(3, 1, 1, 95.00, 0.0000, 0.00, 95.00, '["KORUS_FTA", "HTSUS_2106.90.99.00", "BrokerReview_Approved"]', NOW() - INTERVAL '5 days'),
+(3, 1, 10, 950.00, 0.0000, 0.00, 950.00, '["KORUS_FTA", "HTSUS_2106.90.99.00", "BrokerReview_Approved"]', NOW() - INTERVAL '5 days'),
+
+-- PROD-2024-004 (Instant Cooked Rice Multipack) - APPROVED
+(4, 1, 1, 28.00, 0.0000, 0.00, 28.00, '["KORUS_FTA", "HTSUS_1904.90.00.00", "BrokerReview_Approved"]', NOW() - INTERVAL '4 days'),
+(4, 1, 10, 280.00, 0.0000, 0.00, 280.00, '["KORUS_FTA", "HTSUS_1904.90.00.00", "BrokerReview_Approved"]', NOW() - INTERVAL '4 days'),
+
+-- PROD-2024-006 (Premium Instant Ramyeon 4-Pack) - APPROVED
+(6, 1, 1, 15.50, 0.0000, 0.00, 15.50, '["KORUS_FTA", "HTSUS_1902.30.00.00", "BrokerReview_Approved"]', NOW() - INTERVAL '2 days'),
+(6, 1, 10, 155.00, 0.0000, 0.00, 155.00, '["KORUS_FTA", "HTSUS_1902.30.00.00", "BrokerReview_Approved"]', NOW() - INTERVAL '2 days'),
+
+-- PROD-2024-008 (Fermented Cabbage Kimchi) - APPROVED
+(8, 1, 1, 26.00, 0.0000, 0.00, 26.00, '["KORUS_FTA", "HTSUS_2005.99.10.00", "BrokerReview_Approved"]', NOW() - INTERVAL '8 days'),
+(8, 1, 10, 260.00, 0.0000, 0.00, 260.00, '["KORUS_FTA", "HTSUS_2005.99.10.00", "BrokerReview_Approved"]', NOW() - INTERVAL '8 days'),
+
+-- PROD-2024-009 (Spicy Radish Kimchi) - tariff_1qty만 분석 완료
+(9, 1, 1, 21.50, 0.0000, 0.00, 21.50, '["KORUS_FTA", "HTSUS_2005.99.10.00", "ProductAnalysisCache", "Partial_Analysis"]', NOW() - INTERVAL '20 hours');
