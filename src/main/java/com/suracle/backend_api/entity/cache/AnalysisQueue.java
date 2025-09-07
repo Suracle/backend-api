@@ -1,5 +1,6 @@
 package com.suracle.backend_api.entity.cache;
 
+import com.suracle.backend_api.entity.base.BaseEntity;
 import com.suracle.backend_api.entity.product.Product;
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,12 +9,12 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "analysis_queue")
-@Getter
+@Getter 
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AnalysisQueue {
+public class AnalysisQueue extends BaseEntity  {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,6 +25,7 @@ public class AnalysisQueue {
   private Product product;
 
   @Column(name = "analysis_types", nullable = false, columnDefinition = "json")
+  @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
   private String analysisTypes; // ['tariff_1qty', 'tariff_10qty', 'requirements', 'precedents']
 
   @Enumerated(EnumType.STRING)
