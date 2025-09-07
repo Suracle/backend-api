@@ -25,6 +25,7 @@ public class ProductResponseDto {
     private BigDecimal fobPrice;
     private String originCountry;
     private String hsCode;
+    private String hsCodeDescription;
     private ProductStatus status;
     private Boolean isActive;
     private LocalDateTime createdAt;

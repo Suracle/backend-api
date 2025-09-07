@@ -28,15 +28,14 @@ public class ChatMessage {
   @Column(name = "sender_type", length = 10)
   private MessageSenderType senderType;
 
-  @Lob
-  @Column(name = "message_content")
+  @Column(name = "message_content", columnDefinition = "text")
   private String messageContent;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "message_type", length = 10)
   private MessageType messageType;
 
-  @Column(name = "metadata", columnDefinition = "json")
+  @Column(name = "metadata", columnDefinition = "text")
   private String metadata;
 
   @Column(name = "created_at", nullable = false, updatable = false)

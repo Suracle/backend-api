@@ -8,8 +8,8 @@ import lombok.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "product_analysis_cache", 
-       uniqueConstraints = @UniqueConstraint(columnNames = {"product_id", "analysis_type"}))
+@Table(name = "product_analysis_cache", uniqueConstraints = @UniqueConstraint(columnNames = { "product_id",
+    "analysis_type" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,7 +26,7 @@ public class ProductAnalysisCache extends BaseEntity {
   private Product product;
 
   @Column(name = "analysis_type", nullable = false, length = 50)
-  private String analysisType; // 'hs_code', 'tariff_1qty', 'tariff_10qty', 'requirements', 'precedents'
+  private String analysisType; // 'tariff_1qty', 'tariff_10qty', 'requirements', 'precedents'
 
   @Column(name = "analysis_result", nullable = false, columnDefinition = "json")
   private String analysisResult;

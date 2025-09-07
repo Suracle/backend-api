@@ -13,7 +13,9 @@ import com.suracle.backend_api.entity.user.User;
 import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
 import com.suracle.backend_api.repository.ProductRepository;
 import com.suracle.backend_api.repository.UserRepository;
+import com.suracle.backend_api.repository.HsCodeRepository;
 import com.suracle.backend_api.service.ProductService;
+import com.suracle.backend_api.service.ProductAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -23,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -33,37 +34,60 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final HsCodeRepository hsCodeRepository;
+    private final ProductAnalysisService productAnalysisService;
     private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
     private final ObjectMapper objectMapper;
 
     @Override
     public ProductResponseDto createProduct(ProductRequestDto productRequestDto, Integer sellerId) {
-        log.info("상품 등록 요청 - 판매자 ID: {}, 상품명: {}", sellerId, productRequestDto.getProductName());
+        log.info("상품 등록 요청 - 판매자 ID: {}, 상품명: {}, 가격: {}, FOB가격: {}", 
+                sellerId, productRequestDto.getProductName(), productRequestDto.getPrice(), productRequestDto.getFobPrice());
 
         // 판매자 존재 확인
         User seller = userRepository.findById(sellerId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 판매자입니다: " + sellerId));
+                .orElseThrow(() -> {
+                    log.error("존재하지 않는 판매자 ID: {}", sellerId);
+                    return new IllegalArgumentException("존재하지 않는 판매자입니다: " + sellerId);
+                });
 
         // 상품 ID 생성 (UUID 기반)
         String productId = generateProductId();
 
         // Product 엔티티 생성
-        Product product = Product.builder()
-                .seller(seller)
-                .productId(productId)
-                .productName(productRequestDto.getProductName())
-                .description(productRequestDto.getDescription())
-                .price(productRequestDto.getPrice())
-                .fobPrice(productRequestDto.getFobPrice())
-                .originCountry(productRequestDto.getOriginCountry())
-                .hsCode(productRequestDto.getHsCode())
-                .status(productRequestDto.getStatus() != null ? productRequestDto.getStatus() : ProductStatus.DRAFT)
-                .isActive(productRequestDto.getIsActive() != null ? productRequestDto.getIsActive() : true)
-                .build();
+        Product savedProduct;
+        try {
+            Product product = Product.builder()
+                    .seller(seller)
+                    .productId(productId)
+                    .productName(productRequestDto.getProductName())
+                    .description(productRequestDto.getDescription())
+                    .price(productRequestDto.getPrice())
+                    .fobPrice(productRequestDto.getFobPrice())
+                    .originCountry(productRequestDto.getOriginCountry())
+                    .hsCode(productRequestDto.getHsCode())
+                    .status(productRequestDto.getStatus() != null ? productRequestDto.getStatus() : ProductStatus.DRAFT)
+                    .isActive(productRequestDto.getIsActive() != null ? productRequestDto.getIsActive() : true)
+                    .build();
 
-        // 상품 저장
-        Product savedProduct = productRepository.save(product);
+            log.info("Product 엔티티 생성 완료 - ID: {}, 상품명: {}, 가격: {}, FOB가격: {}", 
+                    productId, product.getProductName(), product.getPrice(), product.getFobPrice());
+
+            // 상품 저장
+            savedProduct = productRepository.save(product);
+            log.info("상품 저장 완료 - DB ID: {}, 상품 ID: {}", savedProduct.getId(), savedProduct.getProductId());
+        } catch (Exception e) {
+            log.error("Product 엔티티 생성 또는 저장 중 오류 발생 - 판매자 ID: {}, 상품명: {}, 오류: {}", 
+                     sellerId, productRequestDto.getProductName(), e.getMessage(), e);
+            throw e;
+        }
+        
         log.info("상품 등록 완료 - 상품 ID: {}, 상품명: {}", savedProduct.getProductId(), savedProduct.getProductName());
+
+        // 백그라운드 분석 스케줄링 (HS코드가 있는 경우에만)
+        if (savedProduct.getHsCode() != null && !savedProduct.getHsCode().trim().isEmpty()) {
+            productAnalysisService.scheduleBackgroundAnalysis(savedProduct);
+        }
 
         return convertToProductResponseDto(savedProduct);
     }
@@ -166,13 +190,13 @@ public class ProductServiceImpl implements ProductService {
                     Map.class
             );
 
-            // PrecedentsResponseDto 생성
+            // PrecedentsResponseDto 생성 - data.sql 구조에 맞게 수정
             return PrecedentsResponseDto.builder()
-                    .similarProducts((List<String>) analysisResult.get("similar_products"))
-                    .approvalRate(((Number) analysisResult.get("approval_rate")).doubleValue())
-                    .commonIssues((List<String>) analysisResult.get("common_issues"))
-                    .successFactors((List<String>) analysisResult.get("success_factors"))
-                    
+                    .successCases((List<String>) analysisResult.get("success_cases"))
+                    .failureCases((List<String>) analysisResult.get("failure_cases"))
+                    .actionableInsights((List<String>) analysisResult.get("actionable_insights"))
+                    .riskFactors((List<String>) analysisResult.get("risk_factors"))
+                    .recommendedAction((String) analysisResult.get("recommended_action"))
                     .confidenceScore(precedentsCache.getConfidenceScore().doubleValue())
                     .isValid(precedentsCache.getIsValid())
                     .build();
@@ -184,12 +208,19 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * 상품 ID 생성 (UUID 기반)
+     * 상품 ID 생성 (PROD-YYYY-#### 형태)
      */
     private String generateProductId() {
         String productId;
         do {
-            productId = "PRD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            // 현재 연도 가져오기
+            int currentYear = java.time.LocalDate.now().getYear();
+            
+            // 4자리 랜덤 숫자 생성 (0001-9999)
+            int randomNumber = (int) (Math.random() * 9999) + 1;
+            
+            // PROD-YYYY-#### 형태로 생성
+            productId = String.format("PROD-%d-%04d", currentYear, randomNumber);
         } while (productRepository.existsByProductId(productId));
         return productId;
     }
@@ -198,6 +229,18 @@ public class ProductServiceImpl implements ProductService {
      * Product 엔티티를 ProductResponseDto로 변환
      */
     private ProductResponseDto convertToProductResponseDto(Product product) {
+        // HS 코드 설명 조회
+        String hsCodeDescription = null;
+        if (product.getHsCode() != null) {
+            try {
+                hsCodeDescription = hsCodeRepository.findByHsCode(product.getHsCode())
+                        .map(hsCode -> hsCode.getDescription())
+                        .orElse(null);
+            } catch (Exception e) {
+                log.warn("HS 코드 설명 조회 실패 - HS 코드: {}, 오류: {}", product.getHsCode(), e.getMessage());
+            }
+        }
+
         return ProductResponseDto.builder()
                 .id(product.getId())
                 .sellerId(product.getSeller().getId())
@@ -209,6 +252,7 @@ public class ProductServiceImpl implements ProductService {
                 .fobPrice(product.getFobPrice())
                 .originCountry(product.getOriginCountry())
                 .hsCode(product.getHsCode())
+                .hsCodeDescription(hsCodeDescription)
                 .status(product.getStatus())
                 .isActive(product.getIsActive())
                 .createdAt(product.getCreatedAt())
