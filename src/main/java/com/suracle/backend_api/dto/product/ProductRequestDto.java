@@ -27,6 +27,7 @@ public class ProductRequestDto {
     @Digits(integer = 15, fraction = 4, message = "가격 형식이 올바르지 않습니다")
     private BigDecimal price;
 
+    @NotNull(message = "FOB 가격은 필수입니다")
     @DecimalMin(value = "0.0", inclusive = false, message = "FOB 가격은 0보다 커야 합니다")
     @Digits(integer = 15, fraction = 4, message = "FOB 가격 형식이 올바르지 않습니다")
     private BigDecimal fobPrice;
