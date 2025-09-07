@@ -62,23 +62,17 @@ public class RequirementService {
                 .productId(product.getProductId())
                 .productName(product.getProductName())
                 .hsCode(product.getHsCode())
-                .fdaRegistration(jsonNode.path("fda_registration").asBoolean(false))
-                .cosmeticFacilityRegistration(jsonNode.path("cosmetic_facility_registration").asBoolean(false))
-                .ingredientSafety(jsonNode.path("ingredient_safety").asBoolean(false))
-                .labelingCompliance(jsonNode.path("labeling_compliance").asBoolean(false))
-                .colorAdditiveApproval(jsonNode.path("color_additive_approval").asBoolean(false))
-                .safetyTesting(jsonNode.path("safety_testing").asBoolean(false))
-                .phTesting(jsonNode.path("ph_testing").asBoolean(false))
-                .sensitiveSkinTesting(jsonNode.path("sensitive_skin_testing").asBoolean(false))
-                .uvSafety(jsonNode.path("uv_safety").asBoolean(false))
-                .chemicalDisclosure(jsonNode.path("chemical_disclosure").asBoolean(false))
-                .proteinComplexDisclosure(jsonNode.path("protein_complex_disclosure").asBoolean(false))
-                .aminoAcidDocumentation(jsonNode.path("amino_acid_documentation").asBoolean(false))
-                .hairStrengthClaims(jsonNode.path("hair_strength_claims").asBoolean(false))
-                .snailExtractSafety(jsonNode.path("snail_extract_safety").asBoolean(false))
-                .sulfateFreeClaim(jsonNode.path("sulfate_free_claim").asBoolean(false))
-                .additionalDocs(parseStringArray(jsonNode.path("additional_docs")))
-                .sources(parseStringArray(jsonNode.path("sources")))
+                .criticalActions(parseStringArray(jsonNode.path("critical_actions")))
+                .requiredDocuments(parseStringArray(jsonNode.path("required_documents")))
+                .complianceSteps(parseStringArray(jsonNode.path("compliance_steps")))
+                .timeline(jsonNode.path("timeline").asText(null))
+                .brokerRejectionReason(jsonNode.path("broker_rejection_reason").asText(null))
+                .criticalDeadline(jsonNode.path("critical_deadline").asText(null))
+                .qualityStandards(jsonNode.path("quality_standards").asText(null))
+                .coldChainRequirement(jsonNode.path("cold_chain_requirement").asText(null))
+                .criticalWarning(jsonNode.path("critical_warning").asText(null))
+                .pendingAnalysis(jsonNode.path("pending_analysis").asText(null))
+                .sources(parseStringArrayFromSources(cache.getSources()))
                 .confidenceScore(cache.getConfidenceScore().doubleValue())
                 .isValid(cache.getIsValid())
                 .lastUpdated(cache.getUpdatedAt().toString())
@@ -99,27 +93,37 @@ public class RequirementService {
         return result;
     }
 
+    private List<String> parseStringArrayFromSources(String sourcesJson) {
+        List<String> result = new ArrayList<>();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(sourcesJson);
+            if (jsonNode.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode node : jsonNode) {
+                    result.add(node.asText());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error parsing sources JSON: {}", sourcesJson, e);
+        }
+        return result;
+    }
+
     private RequirementAnalysisResponse createEmptyResponse(Product product) {
         return RequirementAnalysisResponse.builder()
             .productId(product.getProductId())
             .productName(product.getProductName())
             .hsCode(product.getHsCode())
-            .fdaRegistration(false)
-            .cosmeticFacilityRegistration(false)
-            .ingredientSafety(false)
-            .labelingCompliance(false)
-            .colorAdditiveApproval(false)
-            .safetyTesting(false)
-            .phTesting(false)
-            .sensitiveSkinTesting(false)
-            .uvSafety(false)
-            .chemicalDisclosure(false)
-            .proteinComplexDisclosure(false)
-            .aminoAcidDocumentation(false)
-            .hairStrengthClaims(false)
-            .snailExtractSafety(false)
-            .sulfateFreeClaim(false)
-            .additionalDocs(new ArrayList<>())
+            .criticalActions(new ArrayList<>())
+            .requiredDocuments(new ArrayList<>())
+            .complianceSteps(new ArrayList<>())
+            .timeline(null)
+            .brokerRejectionReason(null)
+            .criticalDeadline(null)
+            .qualityStandards(null)
+            .coldChainRequirement(null)
+            .criticalWarning(null)
+            .pendingAnalysis(null)
             .sources(new ArrayList<>())
             .confidenceScore(0.0)
             .isValid(false)
