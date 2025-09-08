@@ -5,6 +5,9 @@ import com.suracle.backend_api.dto.product.ProductRequestDto;
 import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
 import com.suracle.backend_api.service.ProductService;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -190,6 +193,31 @@ public class ProductController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         } catch (Exception e) {
             log.error("판례 분석 조회 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * 상품 ID 매핑 조회 (숫자 ID -> 문자열 productId)
+     * @param id 숫자 ID
+     * @return ID 매핑 정보
+     */
+    @GetMapping("/id-mapping/{id}")
+    public ResponseEntity<Map<String, String>> getProductIdMapping(@PathVariable Integer id) {
+        try {
+            log.info("상품 ID 매핑 조회 요청 - ID: {}", id);
+            Optional<ProductResponseDto> product = productService.getProductById(id);
+            if (product.isPresent()) {
+                Map<String, String> mapping = new HashMap<>();
+                mapping.put("id", id.toString());
+                mapping.put("productId", product.get().getProductId());
+                mapping.put("productName", product.get().getProductName());
+                return ResponseEntity.ok(mapping);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("상품 ID 매핑 조회 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
