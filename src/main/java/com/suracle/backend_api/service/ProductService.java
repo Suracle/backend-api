@@ -6,6 +6,7 @@ import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.util.Optional;
 
 public interface ProductService {
 
@@ -30,6 +31,13 @@ public interface ProductService {
      * @return 상품 상세 정보
      */
     ProductResponseDto getProductById(String productId);
+
+    /**
+     * 상품 상세 조회 (숫자 ID)
+     * @param id 숫자 ID
+     * @return 상품 상세 정보
+     */
+    Optional<ProductResponseDto> getProductById(Integer id);
 
     /**
      * 상품 삭제

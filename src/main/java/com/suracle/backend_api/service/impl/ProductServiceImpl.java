@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -258,6 +259,14 @@ public class ProductServiceImpl implements ProductService {
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    public Optional<ProductResponseDto> getProductById(Integer id) {
+        log.info("상품 조회 요청 (숫자 ID) - ID: {}", id);
+        
+        return productRepository.findById(id)
+                .map(this::convertToProductResponseDto);
     }
 
     /**
