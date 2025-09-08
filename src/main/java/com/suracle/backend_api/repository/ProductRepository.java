@@ -62,4 +62,10 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      */
     @Query("SELECT p FROM Product p WHERE p.seller.id = :sellerId AND (:productName IS NULL OR :productName = '' OR LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%'))) AND p.isActive = true AND (:status IS NULL OR p.status = :status)")
     Page<Product> findBySellerIdAndProductNameContainingAndStatusAndIsActiveTrue(@Param("sellerId") Integer sellerId, @Param("productName") String productName, @Param("status") ProductStatus status, Pageable pageable);
+
+    /**
+     * 상품명으로 검색 (대소문자 구분 없음, 단일 결과)
+     */
+    @Query("SELECT p FROM Product p WHERE LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%')) AND p.isActive = true")
+    Optional<Product> findByProductNameContainingIgnoreCase(@Param("productName") String productName);
 }
