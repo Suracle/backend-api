@@ -9,12 +9,12 @@ import com.suracle.backend_api.entity.chat.ChatSession;
 import com.suracle.backend_api.entity.chat.enums.ChatSessionStatus;
 import com.suracle.backend_api.entity.chat.enums.ChatSessionType;
 import com.suracle.backend_api.entity.chat.enums.MessageSenderType;
-import com.suracle.backend_api.entity.chat.enums.MessageType;
 import com.suracle.backend_api.entity.user.User;
 import com.suracle.backend_api.repository.ChatMessageRepository;
 import com.suracle.backend_api.repository.ChatSessionRepository;
 import com.suracle.backend_api.repository.UserRepository;
 import com.suracle.backend_api.service.ChatService;
+import com.suracle.backend_api.service.impl.ChatAiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -198,31 +198,24 @@ public class ChatServiceImpl implements ChatService {
         ChatSession session = chatSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 세션입니다: " + sessionId));
         
-        // 샘플 데이터 기반 AI 응답 생성 (추후 실제 AI 로직으로 대체)
-        String aiResponse = generateSampleAiResponse(session, userMessage);
+        // AI 응답 생성 (메시지 타입과 메타데이터 포함)
+        ChatAiService.AiResponse aiResponse = chatAiService.generateResponseWithType(session, userMessage);
         
         // AI 응답 메시지 저장
         ChatMessage aiMessage = ChatMessage.builder()
                 .session(session)
                 .senderType(MessageSenderType.AI)
-                .messageContent(aiResponse)
-                .messageType(MessageType.TEXT)
-                .metadata("{\"ai_generated\": true, \"response_time_ms\": 1500}")
+                .messageContent(aiResponse.getContent())
+                .messageType(aiResponse.getMessageType())
+                .metadata(aiResponse.getMetadata())
                 .build();
         
         ChatMessage savedMessage = chatMessageRepository.save(aiMessage);
-        log.info("AI 응답 생성 완료 - 메시지 ID: {}", savedMessage.getId());
+        log.info("AI 응답 생성 완료 - 메시지 ID: {}, 메시지 타입: {}", savedMessage.getId(), savedMessage.getMessageType());
         
         return convertToMessageResponseDto(savedMessage);
     }
 
-    /**
-     * 샘플 데이터 기반 AI 응답 생성 (MVP용)
-     * 추후 실제 AI 로직으로 대체 예정
-     */
-    private String generateSampleAiResponse(ChatSession session, String userMessage) {
-        return chatAiService.generateResponse(session, userMessage);
-    }
 
     /**
      * ChatSession을 ChatSessionResponseDto로 변환
