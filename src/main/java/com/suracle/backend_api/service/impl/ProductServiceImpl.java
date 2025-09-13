@@ -1,27 +1,177 @@
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 package com.suracle.backend_api.service.impl;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.dto.product.ProductListResponseDto;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.dto.product.ProductRequestDto;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.entity.cache.ProductAnalysisCache;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.entity.product.Product;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.entity.product.enums.ProductStatus;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.entity.user.User;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.repository.ProductRepository;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.repository.UserRepository;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.repository.HsCodeRepository;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.service.ProductService;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import com.suracle.backend_api.service.ProductAnalysisService;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import org.springframework.data.domain.Page;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.HashMap;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +189,10 @@ public class ProductServiceImpl implements ProductService {
     private final ProductAnalysisService productAnalysisService;
     private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
     private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
+    
+    @Value("${ai.engine.base-url}")
+    private String aiEngineBaseUrl;
 
     @Override
     public ProductResponseDto createProduct(ProductRequestDto productRequestDto, Integer sellerId) {
@@ -172,6 +326,8 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
+    @Override
+    @Transactional(readOnly = true)
     public PrecedentsResponseDto getProductPrecedents(String productId) {
         log.info("상품 판례 분석 조회 요청 - 상품 ID: {}", productId);
 
@@ -179,69 +335,122 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findByProductId(productId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상품입니다: " + productId));
 
-        // precedents 분석 결과 조회
-        ProductAnalysisCache precedentsCache = productAnalysisCacheRepository
-                .findByProductIdAndAnalysisType(product.getId(), "precedents")
-                .orElseThrow(() -> new IllegalArgumentException("해당 상품의 판례 분석 결과가 없습니다"));
+        // 1. 캐시에서 먼저 확인
+        Optional<ProductAnalysisCache> cache = productAnalysisCacheRepository
+                .findByProductIdAndAnalysisType(product.getId(), "precedents");
+        
+        if (cache.isPresent()) {
+            log.info("캐시에서 판례 분석 결과 반환 - 상품 ID: {}", productId);
+            return parsePrecedentsFromCache(cache.get());
+        }
 
+        // 2. 캐시에 없으면 AI Engine 호출
+        log.info("AI Engine에서 판례 분석 수행 - 상품 ID: {}", productId);
         try {
-            // JSON 분석 결과를 Map으로 파싱
-            Map<String, Object> analysisResult = objectMapper.readValue(
-                    precedentsCache.getAnalysisResult(), 
-                    Map.class
+            // AI Engine에 분석 요청
+            Map<String, Object> request = new HashMap<>();
+            request.put("product_id", product.getProductId());
+            request.put("product_name", product.getProductName());
+            request.put("description", product.getDescription());
+            request.put("hs_code", product.getHsCode());
+            request.put("origin_country", product.getOriginCountry());
+            request.put("price", product.getPrice());
+            request.put("fob_price", product.getFobPrice());
+
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // 요청 엔티티 생성
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(request, headers);
+
+            // AI Engine 호출
+            String aiEngineUrl = aiEngineBaseUrl + "/analyze-precedents";
+            Map<String, Object> response = restTemplate.postForObject(
+                    aiEngineUrl, requestEntity, Map.class
             );
 
-            // PrecedentsResponseDto 생성 - data.sql 구조에 맞게 수정
+            if (response != null) {
+                // 결과를 캐시에 저장
+                saveAnalysisResult(product, "precedents", response);
+                
+                // 응답 변환하여 반환
+                return convertToPrecedentsDto(response);
+            } else {
+                log.warn("AI Engine 응답이 null입니다 - 상품 ID: {}", productId);
+                return getDefaultPrecedentsResponse();
+            }
+
+        } catch (Exception e) {
+            log.error("AI Engine 호출 실패 - 상품 ID: {}", productId, e);
+            // 실패 시 기본값 반환
+            return getDefaultPrecedentsResponse();
+        }
+    }
+
+    private PrecedentsResponseDto parsePrecedentsFromCache(ProductAnalysisCache cache) {
+        try {
+            Map<String, Object> analysisResult = objectMapper.readValue(
+                    cache.getAnalysisResult(), Map.class
+            );
+            
             return PrecedentsResponseDto.builder()
                     .successCases((List<String>) analysisResult.get("success_cases"))
                     .failureCases((List<String>) analysisResult.get("failure_cases"))
                     .actionableInsights((List<String>) analysisResult.get("actionable_insights"))
                     .riskFactors((List<String>) analysisResult.get("risk_factors"))
                     .recommendedAction((String) analysisResult.get("recommended_action"))
-                    .confidenceScore(precedentsCache.getConfidenceScore().doubleValue())
-                    .isValid(precedentsCache.getIsValid())
+                    .confidenceScore(cache.getConfidenceScore().doubleValue())
+                    .isValid(cache.getIsValid())
                     .build();
-
         } catch (JsonProcessingException e) {
-            log.error("판례 분석 결과 파싱 오류 - 상품 ID: {}", productId, e);
-            throw new RuntimeException("판례 분석 결과를 처리하는 중 오류가 발생했습니다", e);
+            log.error("캐시 데이터 파싱 오류", e);
+            return getDefaultPrecedentsResponse();
         }
     }
 
-    /**
-     * 상품 ID 생성 (PROD-YYYY-#### 형태)
-     */
-    private String generateProductId() {
-        String productId;
-        do {
-            // 현재 연도 가져오기
-            int currentYear = java.time.LocalDate.now().getYear();
+    private void saveAnalysisResult(Product product, String analysisType, Map<String, Object> result) {
+        try {
+            String analysisResultJson = objectMapper.writeValueAsString(result);
             
-            // 4자리 랜덤 숫자 생성 (0001-9999)
-            int randomNumber = (int) (Math.random() * 9999) + 1;
+            ProductAnalysisCache cache = ProductAnalysisCache.builder()
+                    .product(product)
+                    .analysisType(analysisType)
+                    .analysisResult(analysisResultJson)
+                    .confidenceScore(java.math.BigDecimal.valueOf((Double) result.getOrDefault("confidence_score", 0.5)))
+                    .isValid((Boolean) result.getOrDefault("is_valid", true))
+                    .build();
             
-            // PROD-YYYY-#### 형태로 생성
-            productId = String.format("PROD-%d-%04d", currentYear, randomNumber);
-        } while (productRepository.existsByProductId(productId));
-        return productId;
+            productAnalysisCacheRepository.save(cache);
+            log.info("분석 결과 캐시 저장 완료 - 상품 ID: {}, 분석 타입: {}", product.getProductId(), analysisType);
+        } catch (Exception e) {
+            log.error("분석 결과 캐시 저장 실패", e);
+        }
     }
 
-    /**
-     * Product 엔티티를 ProductResponseDto로 변환
-     */
-    private ProductResponseDto convertToProductResponseDto(Product product) {
-        // HS 코드 설명 조회
-        String hsCodeDescription = null;
-        if (product.getHsCode() != null) {
-            try {
-                hsCodeDescription = hsCodeRepository.findByHsCode(product.getHsCode())
-                        .map(hsCode -> hsCode.getDescription())
-                        .orElse(null);
-            } catch (Exception e) {
-                log.warn("HS 코드 설명 조회 실패 - HS 코드: {}, 오류: {}", product.getHsCode(), e.getMessage());
-            }
-        }
+    private PrecedentsResponseDto convertToPrecedentsDto(Map<String, Object> response) {
+        return PrecedentsResponseDto.builder()
+                .successCases((List<String>) response.getOrDefault("success_cases", List.of()))
+                .failureCases((List<String>) response.getOrDefault("failure_cases", List.of()))
+                .actionableInsights((List<String>) response.getOrDefault("actionable_insights", List.of()))
+                .riskFactors((List<String>) response.getOrDefault("risk_factors", List.of()))
+                .recommendedAction((String) response.getOrDefault("recommended_action", "분석 결과 없음"))
+                .confidenceScore((Double) response.getOrDefault("confidence_score", 0.5))
+                .isValid((Boolean) response.getOrDefault("is_valid", false))
+                .build();
+    }
 
+    private PrecedentsResponseDto getDefaultPrecedentsResponse() {
+        return PrecedentsResponseDto.builder()
+                .successCases(List.of("분석을 위해 추가 데이터가 필요합니다"))
+                .failureCases(List.of("일반적인 수입 거부 사유를 확인하세요"))
+                .actionableInsights(List.of("FDA 인증서 준비", "HS코드 정확성 확인"))
+                .riskFactors(List.of("규제 변경 가능성", "문서 부족"))
+                .recommendedAction("전문가 상담 권장")
+                .confidenceScore(0.3)
+                .isValid(false)
+                .build();
+    }
         return ProductResponseDto.builder()
                 .id(product.getId())
                 .sellerId(product.getSeller().getId())
