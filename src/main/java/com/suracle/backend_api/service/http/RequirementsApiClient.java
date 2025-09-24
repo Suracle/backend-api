@@ -2,6 +2,7 @@ package com.suracle.backend_api.service.http;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -47,28 +48,92 @@ public class RequirementsApiClient {
             String name = englishName == null ? "" : englishName.trim();
             log.info("🔍 FDA Cosmetic Event API 호출 시작: '{}'", name);
             
-            URI base = URI.create("https://api.fda.gov/cosmetic/event.json");
+            // openFDA cosmetics: correct base path is plural 'cosmetics'
+            URI base = URI.create("https://api.fda.gov/cosmetics/event.json");
             // String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
 
-            // exact
+            // AND token query first
             {
-                String searchQuery = "products.name_brand:" + name;
+                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+                String tokenExpr = String.join(" AND ", tokens);
+                if (tokenExpr.isEmpty()) {
+                    tokenExpr = name;
+                }
+                String searchQuery = "products.name_brand:(" + tokenExpr + ")";
                 URI uri = UriComponentsBuilder.fromUri(base)
                         .queryParam("search", searchQuery)
                         .queryParam("limit", 10)
                         .build(true).toUri();
-                log.info("📡 시도 1 (exact): {}", uri);
+                log.info("📡 시도 1 (AND tokens): {}", uri);
                 ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
                 String body = resp.getBody();
                 log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
                 if (resp.getStatusCode().is2xxSuccessful()) {
                     if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
                         JsonNode json = objectMapper.readTree(body);
+                        if (json.isObject()) {
+                            ObjectNode meta = ((ObjectNode) json).with("_meta");
+                            meta.put("strategy", "and_tokens");
+                            meta.put("query_used", searchQuery);
+                        }
                         int resultCount = json.path("results").size();
-                        log.info("✅ FDA Cosmetic Event 성공: {}개 결과", resultCount);
+                        log.info("✅ FDA Cosmetic Event(AND) 성공: {}개 결과", resultCount);
                         return Optional.of(json);
-                    } else {
-                        log.warn("⚠️ FDA Cosmetic Event: JSON이 아닌 응답 (HTML?)");
+                    }
+                }
+            }
+            // OR token query second
+            {
+                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+                String tokenExpr = String.join(" OR ", tokens);
+                if (tokenExpr.isEmpty()) {
+                    tokenExpr = name;
+                }
+                String searchQuery = "products.name_brand:(" + tokenExpr + ")";
+                URI uri = UriComponentsBuilder.fromUri(base)
+                        .queryParam("search", searchQuery)
+                        .queryParam("limit", 10)
+                        .build(true).toUri();
+                log.info("📡 시도 2 (OR tokens): {}", uri);
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+                if (resp.getStatusCode().is2xxSuccessful()) {
+                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                        JsonNode json = objectMapper.readTree(body);
+                        if (json.isObject()) {
+                            ObjectNode meta = ((ObjectNode) json).with("_meta");
+                            meta.put("strategy", "or_tokens");
+                            meta.put("query_used", searchQuery);
+                        }
+                        int resultCount = json.path("results").size();
+                        log.info("✅ FDA Cosmetic Event(OR) 성공: {}개 결과", resultCount);
+                        return Optional.of(json);
+                    }
+                }
+            }
+            // exact phrase fallback third
+            {
+                String searchQuery = "products.name_brand:\"" + name + "\"";
+                URI uri = UriComponentsBuilder.fromUri(base)
+                        .queryParam("search", searchQuery)
+                        .queryParam("limit", 10)
+                        .build(true).toUri();
+                log.info("📡 시도 3 (exact phrase): {}", uri);
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+                if (resp.getStatusCode().is2xxSuccessful()) {
+                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                        JsonNode json = objectMapper.readTree(body);
+                        if (json.isObject()) {
+                            ObjectNode meta = ((ObjectNode) json).with("_meta");
+                            meta.put("strategy", "exact_phrase");
+                            meta.put("query_used", searchQuery);
+                        }
+                        int resultCount = json.path("results").size();
+                        log.info("✅ FDA Cosmetic Event(exact) 성공: {}개 결과", resultCount);
+                        return Optional.of(json);
                     }
                 }
             }
@@ -88,33 +153,85 @@ public class RequirementsApiClient {
             log.info("🔍 FDA Food Enforcement API 호출 시작: '{}'", name);
             
             URI base = URI.create("https://api.fda.gov/food/enforcement.json");
-            // String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
 
-            // exact
+            // 1) AND tokens
             {
-                String searchQuery = "product_description:" + name;
+                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+                String tokenExpr = String.join(" AND ", tokens);
+                if (tokenExpr.isEmpty()) tokenExpr = name;
+                String searchQuery = "product_description:(" + tokenExpr + ")";
                 URI uri = UriComponentsBuilder.fromUri(base)
                         .queryParam("search", searchQuery)
                         .queryParam("limit", 10)
                         .build(true).toUri();
-                log.info("📡 시도 1 (exact): {}", uri);
+                log.info("📡 시도 1 (AND tokens): {}", uri);
                 ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
                 String body = resp.getBody();
                 log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
-                if (resp.getStatusCode().is2xxSuccessful()) {
-                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                        JsonNode json = objectMapper.readTree(body);
-                        int resultCount = json.path("results").size();
-                        log.info("✅ FDA Food Enforcement 성공: {}개 결과", resultCount);
-                        return Optional.of(json);
-                    } else {
-                        log.warn("⚠️ FDA Food Enforcement: JSON이 아닌 응답 (HTML?)");
+                if (resp.getStatusCode().is2xxSuccessful() && body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    JsonNode json = objectMapper.readTree(body);
+                    if (json.isObject()) {
+                        ObjectNode meta = ((ObjectNode) json).with("_meta");
+                        meta.put("strategy", "and_tokens");
+                        meta.put("query_used", searchQuery);
                     }
+                    int resultCount = json.path("results").size();
+                    log.info("✅ FDA Food Enforcement(AND) 성공: {}개 결과", resultCount);
+                    return Optional.of(json);
                 }
             }
-            
-            // AND (temporarily disabled for cleaner logs)
-            
+
+            // 2) OR tokens
+            {
+                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+                String tokenExpr = String.join(" OR ", tokens);
+                if (tokenExpr.isEmpty()) tokenExpr = name;
+                String searchQuery = "product_description:(" + tokenExpr + ")";
+                URI uri = UriComponentsBuilder.fromUri(base)
+                        .queryParam("search", searchQuery)
+                        .queryParam("limit", 10)
+                        .build(true).toUri();
+                log.info("📡 시도 2 (OR tokens): {}", uri);
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+                if (resp.getStatusCode().is2xxSuccessful() && body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    JsonNode json = objectMapper.readTree(body);
+                    if (json.isObject()) {
+                        ObjectNode meta = ((ObjectNode) json).with("_meta");
+                        meta.put("strategy", "or_tokens");
+                        meta.put("query_used", searchQuery);
+                    }
+                    int resultCount = json.path("results").size();
+                    log.info("✅ FDA Food Enforcement(OR) 성공: {}개 결과", resultCount);
+                    return Optional.of(json);
+                }
+            }
+
+            // 3) exact phrase
+            {
+                String searchQuery = "product_description:\"" + name + "\"";
+                URI uri = UriComponentsBuilder.fromUri(base)
+                        .queryParam("search", searchQuery)
+                        .queryParam("limit", 10)
+                        .build(true).toUri();
+                log.info("📡 시도 3 (exact phrase): {}", uri);
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+                if (resp.getStatusCode().is2xxSuccessful() && body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    JsonNode json = objectMapper.readTree(body);
+                    if (json.isObject()) {
+                        ObjectNode meta = ((ObjectNode) json).with("_meta");
+                        meta.put("strategy", "exact_phrase");
+                        meta.put("query_used", searchQuery);
+                    }
+                    int resultCount = json.path("results").size();
+                    log.info("✅ FDA Food Enforcement(exact) 성공: {}개 결과", resultCount);
+                    return Optional.of(json);
+                }
+            }
+
             log.info("❌ FDA Food Enforcement: 모든 검색 전략 실패");
         } catch (Exception e) {
             log.warn("❌ FDA Food Enforcement 호출 실패: {}", e.getMessage());
@@ -128,31 +245,84 @@ public class RequirementsApiClient {
             log.info("🔍 FDA Food Event API 호출 시작: '{}'", name);
             
             URI base = URI.create("https://api.fda.gov/food/event.json");
-            // String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
-
-            // exact
+            // 1) AND tokens
             {
-                String searchQuery = "products.name_brand:" + name;
+                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+                String tokenExpr = String.join(" AND ", tokens);
+                if (tokenExpr.isEmpty()) tokenExpr = name;
+                String searchQuery = "products.name_brand:(" + tokenExpr + ")";
                 URI uri = UriComponentsBuilder.fromUri(base)
                         .queryParam("search", searchQuery)
                         .queryParam("limit", 10)
                         .build(true).toUri();
-                log.info("📡 시도 1 (exact): {}", uri);
+                log.info("📡 시도 1 (AND tokens): {}", uri);
                 ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
                 String body = resp.getBody();
                 log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
-                if (resp.getStatusCode().is2xxSuccessful()) {
-                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                        JsonNode json = objectMapper.readTree(body);
-                        int resultCount = json.path("results").size();
-                        log.info("✅ FDA Food Event 성공: {}개 결과", resultCount);
-                        return Optional.of(json);
-                    } else {
-                        log.warn("⚠️ FDA Food Event: JSON이 아닌 응답 (HTML?)");
+                if (resp.getStatusCode().is2xxSuccessful() && body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    JsonNode json = objectMapper.readTree(body);
+                    if (json.isObject()) {
+                        ObjectNode meta = ((ObjectNode) json).with("_meta");
+                        meta.put("strategy", "and_tokens");
+                        meta.put("query_used", searchQuery);
                     }
+                    int resultCount = json.path("results").size();
+                    log.info("✅ FDA Food Event(AND) 성공: {}개 결과", resultCount);
+                    return Optional.of(json);
                 }
             }
-            
+
+            // 2) OR tokens
+            {
+                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+                String tokenExpr = String.join(" OR ", tokens);
+                if (tokenExpr.isEmpty()) tokenExpr = name;
+                String searchQuery = "products.name_brand:(" + tokenExpr + ")";
+                URI uri = UriComponentsBuilder.fromUri(base)
+                        .queryParam("search", searchQuery)
+                        .queryParam("limit", 10)
+                        .build(true).toUri();
+                log.info("📡 시도 2 (OR tokens): {}", uri);
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+                if (resp.getStatusCode().is2xxSuccessful() && body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    JsonNode json = objectMapper.readTree(body);
+                    if (json.isObject()) {
+                        ObjectNode meta = ((ObjectNode) json).with("_meta");
+                        meta.put("strategy", "or_tokens");
+                        meta.put("query_used", searchQuery);
+                    }
+                    int resultCount = json.path("results").size();
+                    log.info("✅ FDA Food Event(OR) 성공: {}개 결과", resultCount);
+                    return Optional.of(json);
+                }
+            }
+
+            // 3) exact phrase
+            {
+                String searchQuery = "products.name_brand:\"" + name + "\"";
+                URI uri = UriComponentsBuilder.fromUri(base)
+                        .queryParam("search", searchQuery)
+                        .queryParam("limit", 10)
+                        .build(true).toUri();
+                log.info("📡 시도 3 (exact phrase): {}", uri);
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+                if (resp.getStatusCode().is2xxSuccessful() && body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    JsonNode json = objectMapper.readTree(body);
+                    if (json.isObject()) {
+                        ObjectNode meta = ((ObjectNode) json).with("_meta");
+                        meta.put("strategy", "exact_phrase");
+                        meta.put("query_used", searchQuery);
+                    }
+                    int resultCount = json.path("results").size();
+                    log.info("✅ FDA Food Event(exact) 성공: {}개 결과", resultCount);
+                    return Optional.of(json);
+                }
+            }
+
             log.info("❌ FDA Food Event: 모든 검색 전략 실패");
         } catch (Exception e) {
             log.warn("❌ FDA Food Event 호출 실패: {}", e.getMessage());
@@ -226,37 +396,55 @@ public class RequirementsApiClient {
 
     public Optional<JsonNode> callFccDeviceAuthorizationGrants(String deviceName) {
         try {
-            String q = (deviceName == null ? "" : deviceName.trim().replace(' ', '+'));
-            URI uri = UriComponentsBuilder
-                    .fromUriString("https://api.fcc.gov/device/authorization/grants")
-                    .queryParam("search", "device_name:" + q)
-                    .queryParam("limit", 10)
-                    .queryParam("format", "json")
-                    .build(true)
-                    .toUri();
+            String raw = deviceName == null ? "" : deviceName.trim();
+            String[] tokens = raw.isEmpty() ? new String[0] : raw.split("\\s+");
+            String spaceExpr = String.join(" ", tokens);
+            String orExpr = String.join(" OR ", tokens);
+            if (spaceExpr.isEmpty()) spaceExpr = raw;
+            if (orExpr.isEmpty()) orExpr = raw;
 
-                    
-            int maxRetries = 3;
-            for (int attempt = 1; attempt <= maxRetries; attempt++) {
-                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
-                if (resp.getStatusCode().is2xxSuccessful()) {
-                    String body = resp.getBody();
-                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                        return Optional.of(objectMapper.readTree(body));
+            String[] strategies = new String[]{"and_tokens", "or_tokens"};
+            String[] values = new String[]{spaceExpr, orExpr};
+
+            for (int i = 0; i < strategies.length; i++) {
+                String strat = strategies[i];
+                String val = values[i].replace(' ', '+');
+                URI uri = UriComponentsBuilder
+                        .fromUriString("https://api.fcc.gov/device/authorization/grants")
+                        .queryParam("search", "device_name:" + val)
+                        .queryParam("limit", 10)
+                        .queryParam("format", "json")
+                        .build(true)
+                        .toUri();
+
+                int maxRetries = 3;
+                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                    ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                    if (resp.getStatusCode().is2xxSuccessful()) {
+                        String body = resp.getBody();
+                        if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                            JsonNode json = objectMapper.readTree(body);
+                            if (json.isObject()) {
+                                ObjectNode meta = ((ObjectNode) json).with("_meta");
+                                meta.put("strategy", strat);
+                                meta.put("query_used", "device_name:" + val);
+                            }
+                            return Optional.of(json);
+                        } else {
+                            log.info("FCC grants returned non-JSON body (likely HTML), ignoring");
+                            break;
+                        }
+                    }
+                    int code = resp.getStatusCode().value();
+                    if (code == 502 && attempt < maxRetries) {
+                        long backoffMs = (long) Math.pow(2, attempt - 1) * 1000L;
+                        log.info("FCC 502 received, retrying attempt {}/{} after {}ms", attempt, maxRetries, backoffMs);
+                        try { Thread.sleep(backoffMs); } catch (InterruptedException ignored) {}
+                        continue;
                     } else {
-                        log.info("FCC grants returned non-JSON body (likely HTML), ignoring");
+                        log.info("FCC grants non-2xx: {}", resp.getStatusCode());
                         break;
                     }
-                }
-                int code = resp.getStatusCode().value();
-                if (code == 502 && attempt < maxRetries) {
-                    long backoffMs = (long) Math.pow(2, attempt - 1) * 1000L;
-                    log.info("FCC 502 received, retrying attempt {}/{} after {}ms", attempt, maxRetries, backoffMs);
-                    try { Thread.sleep(backoffMs); } catch (InterruptedException ignored) {}
-                    continue;
-                } else {
-                    log.info("FCC grants non-2xx: {}", resp.getStatusCode());
-                    break;
                 }
             }
         } catch (Exception e) {
@@ -267,23 +455,44 @@ public class RequirementsApiClient {
 
     public Optional<JsonNode> callCpscRecallsJson(String englishName) {
         try {
-            String q = (englishName == null ? "" : englishName.trim().replace(' ', '+'));
-            URI uri = UriComponentsBuilder
-                    .fromUriString("https://www.cpsc.gov/Recalls/CPSC-Recalls-API/recalls.json")
-                    .queryParam("search", q)
-                    .queryParam("limit", 10)
-                    .build(true)
-                    .toUri();
-            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
-            if (resp.getStatusCode().is2xxSuccessful()) {
-                String body = resp.getBody();
-                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                    return Optional.of(objectMapper.readTree(body));
+            String raw = englishName == null ? "" : englishName.trim();
+            String[] tokens = raw.isEmpty() ? new String[0] : raw.split("\\s+");
+            String spaceExpr = String.join(" ", tokens).replace(' ', '+');
+            String orExpr = String.join("+OR+", tokens);
+            if (spaceExpr.isEmpty()) spaceExpr = raw.replace(' ', '+');
+            if (orExpr.isEmpty()) orExpr = raw.replace(' ', '+');
+
+            String[][] tries = new String[][]{
+                    {"and_tokens", spaceExpr},
+                    {"or_tokens", orExpr}
+            };
+
+            for (String[] t : tries) {
+                String strat = t[0];
+                String val = t[1];
+                URI uri = UriComponentsBuilder
+                        .fromUriString("https://www.cpsc.gov/Recalls/CPSC-Recalls-API/recalls.json")
+                        .queryParam("search", val)
+                        .queryParam("limit", 10)
+                        .build(true)
+                        .toUri();
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                if (resp.getStatusCode().is2xxSuccessful()) {
+                    String body = resp.getBody();
+                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                        JsonNode json = objectMapper.readTree(body);
+                        if (json.isObject()) {
+                            ObjectNode meta = ((ObjectNode) json).with("_meta");
+                            meta.put("strategy", strat);
+                            meta.put("query_used", val);
+                        }
+                        return Optional.of(json);
+                    } else {
+                        log.info("CPSC recalls returned non-JSON body (likely HTML), will try saferproducts.gov fallback");
+                    }
                 } else {
-                    log.info("CPSC recalls returned non-JSON body (likely HTML), will try saferproducts.gov fallback");
+                    log.info("CPSC recalls JSON non-2xx: {}", resp.getStatusCode());
                 }
-            } else {
-                log.info("CPSC recalls JSON non-2xx: {}", resp.getStatusCode());
             }
 
             // Fallback: SaferProducts.gov official JSON API
@@ -299,7 +508,13 @@ public class RequirementsApiClient {
                 if (spResp.getStatusCode().is2xxSuccessful()) {
                     String body = spResp.getBody();
                     if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                        return Optional.of(objectMapper.readTree(body));
+                        JsonNode json = objectMapper.readTree(body);
+                        if (json.isObject()) {
+                            ObjectNode meta = ((ObjectNode) json).with("_meta");
+                            meta.put("strategy", "saferproducts_fallback");
+                            meta.put("query_used", englishName == null ? "" : englishName);
+                        }
+                        return Optional.of(json);
                     }
                 }
                 log.info("SaferProducts fallback non-2xx or non-JSON: {}", spResp.getStatusCode());
@@ -341,32 +556,46 @@ public class RequirementsApiClient {
 
     public Optional<JsonNode> callEpaCompToxSearch(String query) {
         try {
-            String q = (query == null ? "" : query).trim().replace(' ', '+');
-            // log.info("🔍 EPA CompTox API 호출 시작: '{}'", q);
-            
-            URI uri = UriComponentsBuilder
-                    .fromUriString("https://comptox.epa.gov/dashboard/api/chemical/search")
-                    .queryParam("search", q)
-                    .queryParam("limit", 10)
-                    .build(true)
-                    .toUri();
-            log.info("📡 EPA CompTox URL: {}", uri);
-            
-            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
-            String body = resp.getBody();
-            log.info("📊 EPA CompTox 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
-            
-            if (resp.getStatusCode().is2xxSuccessful()) {
-                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                    JsonNode json = objectMapper.readTree(body);
-                    int resultCount = json.path("results").size();
-                    log.info("✅ EPA CompTox 성공: {}개 결과", resultCount);
-                    return Optional.of(json);
-                } else {
-                    // log.warn("⚠️ EPA CompTox: HTML 대시보드 응답 (무시)");
+            String raw = (query == null ? "" : query).trim();
+            String[] tokens = raw.isEmpty() ? new String[0] : raw.split("\\s+");
+            String spaceExpr = String.join(" ", tokens).replace(' ', '+');
+            String orExpr = String.join("+OR+", tokens);
+            if (spaceExpr.isEmpty()) spaceExpr = raw.replace(' ', '+');
+            if (orExpr.isEmpty()) orExpr = raw.replace(' ', '+');
+
+            String[][] tries = new String[][]{
+                    {"and_tokens", spaceExpr},
+                    {"or_tokens", orExpr}
+            };
+
+            for (String[] t : tries) {
+                String strat = t[0];
+                String val = t[1];
+                URI uri = UriComponentsBuilder
+                        .fromUriString("https://comptox.epa.gov/dashboard/api/chemical/search")
+                        .queryParam("search", val)
+                        .queryParam("limit", 10)
+                        .build(true)
+                        .toUri();
+                log.info("📡 EPA CompTox URL({}): {}", strat, uri);
+
+                ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                String body = resp.getBody();
+                log.info("📊 EPA CompTox 응답 상태: {} (Content-Length: {})", resp.getStatusCode(), body != null ? body.length() : 0);
+
+                if (resp.getStatusCode().is2xxSuccessful()) {
+                    if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                        JsonNode json = objectMapper.readTree(body);
+                        if (json.isObject()) {
+                            ObjectNode meta = ((ObjectNode) json).with("_meta");
+                            meta.put("strategy", strat);
+                            meta.put("query_used", val);
+                        }
+                        int resultCount = json.path("results").size();
+                        log.info("✅ EPA CompTox 성공: {}개 결과", resultCount);
+                        return Optional.of(json);
+                    }
                 }
-            } else {
-                // log.info("❌ EPA CompTox: HTTP {} 응답", resp.getStatusCode().value());
             }
         } catch (Exception e) {
             // log.warn("❌ EPA CompTox 호출 실패: {}", e.getMessage());
