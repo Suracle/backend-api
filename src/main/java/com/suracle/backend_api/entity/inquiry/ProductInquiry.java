@@ -35,11 +35,9 @@ public class ProductInquiry extends BaseEntity {
   @Column(name = "inquiry_data", columnDefinition = "json")
   private String inquiryData;
 
-  @Lob
-  @Column(name = "ai_response")
+  @Column(name = "ai_response", columnDefinition = "text")
   private String aiResponse;
 
-  @Lob
   @Column(name = "response_sources", columnDefinition = "json")
   private String responseSources;
 

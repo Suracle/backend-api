@@ -25,14 +25,14 @@ public class ChatMessage {
   private ChatSession session;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "sender_type", length = 10)
+  @Column(name = "sender_type", length = 50)
   private MessageSenderType senderType;
 
   @Column(name = "message_content", columnDefinition = "text")
   private String messageContent;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "message_type", length = 10)
+  @Column(name = "message_type", length = 50)
   private MessageType messageType;
 
   @Column(name = "metadata", columnDefinition = "text")
