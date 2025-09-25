@@ -56,7 +56,7 @@ public class RequirementService {
         try {
             // JSON 파싱을 위한 ObjectMapper 사용 (Jackson)
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(cache.getAnalysisResult());
+            com.fasterxml.jackson.databind.JsonNode jsonNode = cache.getAnalysisResult();
             
             return RequirementAnalysisResponse.builder()
                 .productId(product.getProductId())
@@ -72,7 +72,7 @@ public class RequirementService {
                 .coldChainRequirement(jsonNode.path("cold_chain_requirement").asText(null))
                 .criticalWarning(jsonNode.path("critical_warning").asText(null))
                 .pendingAnalysis(jsonNode.path("pending_analysis").asText(null))
-                .sources(parseStringArrayFromSources(cache.getSources()))
+                .sources(parseStringArrayFromSources(cache.getSources().toString()))
                 .confidenceScore(cache.getConfidenceScore().doubleValue())
                 .isValid(cache.getIsValid())
                 .lastUpdated(cache.getUpdatedAt().toString())
