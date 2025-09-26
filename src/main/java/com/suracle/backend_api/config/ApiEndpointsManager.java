@@ -262,6 +262,134 @@ public class ApiEndpointsManager {
             )
         ));
         
+        // NTIA (National Telecommunications and Information Administration)
+        agencyMap.put("ntia", new AgencyConfig(
+            "NTIA",
+            "https://nbam.ntia.gov",
+            false,
+            "1000/day",
+            Map.of(
+                "nbam_api", Map.of(
+                    "base", "https://nbam.ntia.gov/api",
+                    "search_definition", "https://nbam.ntia.gov/api/search/definition/",
+                    "search", "https://nbam.ntia.gov/api/search"
+                ),
+                "spectrum_data", Map.of(
+                    "base", "https://www.ntia.gov/data",
+                    "spectrum_map", "https://www.ntia.gov/data/spectrum-map",
+                    "5g_data", "https://www.ntia.gov/data/5g-data"
+                ),
+                "broadband_data", Map.of(
+                    "base", "https://www.ntia.gov/data/broadband",
+                    "mapping", "https://www.ntia.gov/data/broadband-mapping",
+                    "availability", "https://www.ntia.gov/data/broadband-availability"
+                )
+            )
+        ));
+        
+        // DOT (Department of Transportation)
+        agencyMap.put("dot", new AgencyConfig(
+            "DOT",
+            "https://data.transportation.gov",
+            false,
+            "1000/day",
+            Map.of(
+                "safety_data", Map.of(
+                    "base", "https://data.transportation.gov",
+                    "nhtsa", "https://www.nhtsa.gov/api",
+                    "faa_safety", "https://www.faa.gov/data_research/accident_incident"
+                ),
+                "traffic_data", Map.of(
+                    "base", "https://data.transportation.gov",
+                    "traffic_volume", "https://data.transportation.gov/Traffic-Volume",
+                    "traffic_safety", "https://data.transportation.gov/Traffic-Safety"
+                ),
+                "aviation_data", Map.of(
+                    "base", "https://data.transportation.gov",
+                    "faa_data", "https://www.faa.gov/data_research",
+                    "airline_data", "https://data.transportation.gov/Aviation"
+                )
+            )
+        ));
+        
+        // DOE (Department of Energy)
+        agencyMap.put("doe", new AgencyConfig(
+            "DOE",
+            "https://www.osti.gov",
+            false,
+            "5000/day",
+            Map.of(
+                "pages_api", Map.of(
+                    "base", "https://www.osti.gov/pages/api/v1",
+                    "records", "https://www.osti.gov/pages/api/v1/records",
+                    "search", "https://www.osti.gov/pages/api/v1/records"
+                ),
+                "doecode_api", Map.of(
+                    "base", "https://www.osti.gov/doecodeapi/services",
+                    "search", "https://www.osti.gov/doecodeapi/services/search"
+                ),
+                "energy_data", Map.of(
+                    "base", "https://api.eia.gov",
+                    "petroleum", "https://api.eia.gov/petroleum",
+                    "natural_gas", "https://api.eia.gov/naturalgas",
+                    "electricity", "https://api.eia.gov/electricity",
+                    "coal", "https://api.eia.gov/coal"
+                )
+            )
+        ));
+        
+        // DOI (Department of the Interior)
+        agencyMap.put("doi", new AgencyConfig(
+            "DOI",
+            "https://data.doi.gov",
+            false,
+            "1000/day",
+            Map.of(
+                "natural_resources", Map.of(
+                    "base", "https://data.doi.gov",
+                    "minerals", "https://data.doi.gov/Minerals",
+                    "water", "https://data.doi.gov/Water",
+                    "land", "https://data.doi.gov/Land"
+                ),
+                "wildlife_data", Map.of(
+                    "base", "https://data.doi.gov",
+                    "fws_data", "https://www.fws.gov/data",
+                    "endangered_species", "https://data.doi.gov/Endangered-Species"
+                ),
+                "national_parks", Map.of(
+                    "base", "https://data.doi.gov",
+                    "nps_data", "https://www.nps.gov/data",
+                    "recreation", "https://data.doi.gov/Recreation"
+                )
+            )
+        ));
+        
+        // DOL (Department of Labor)
+        agencyMap.put("dol", new AgencyConfig(
+            "DOL",
+            "https://dataportal.dol.gov",
+            false,
+            "1000/day",
+            Map.of(
+                "data_portal", Map.of(
+                    "base", "https://dataportal.dol.gov",
+                    "api_examples", "https://dataportal.dol.gov/api-examples",
+                    "api", "https://dataportal.dol.gov/api"
+                ),
+                "employment_data", Map.of(
+                    "base", "https://api.dol.gov",
+                    "unemployment", "https://api.dol.gov/unemployment",
+                    "employment_statistics", "https://api.dol.gov/employment-statistics",
+                    "wage_data", "https://api.dol.gov/wage-data"
+                ),
+                "safety_data", Map.of(
+                    "base", "https://api.dol.gov",
+                    "osha_data", "https://api.dol.gov/osha",
+                    "workplace_safety", "https://api.dol.gov/workplace-safety"
+                )
+            )
+        ));
+        
         return agencyMap;
     }
     

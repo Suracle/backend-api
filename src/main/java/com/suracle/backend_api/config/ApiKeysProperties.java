@@ -18,6 +18,11 @@ public class ApiKeysProperties {
     private String commerceKey;
     private String fccKey;
     private String cpscKey;
+    private String ntiaKey;
+    private String dotKey;
+    private String doeKey;
+    private String doiKey;
+    private String dolKey;
 }
 
 

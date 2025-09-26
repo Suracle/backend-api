@@ -437,10 +437,10 @@ public class RequirementsApiClient {
                         uri = UriComponentsBuilder
                                 .fromUriString(endpointUrl)
                                 .queryParam("q", deviceName)
-                                .queryParam("limit", 10)
-                                .queryParam("format", "json")
-                                .build(true)
-                                .toUri();
+                        .queryParam("limit", 10)
+                        .queryParam("format", "json")
+                        .build(true)
+                        .toUri();
                     }
 
                     log.info("📡 FCC API 시도: {}", uri);
@@ -457,7 +457,7 @@ public class RequirementsApiClient {
                     }
                 } catch (Exception e) {
                     log.warn("⚠️ FCC API 엔드포인트 실패: {}", e.getMessage());
-                    continue;
+                        continue;
                 }
             }
             
@@ -558,12 +558,12 @@ public class RequirementsApiClient {
             };
             
             for (String endpointUrl : endpoints) {
-                try {
-                    UriComponentsBuilder b = UriComponentsBuilder
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder
                             .fromUriString(endpointUrl)
-                            .queryParam("hs_code", hsCode)
-                            .queryParam("limit", 10)
-                            .queryParam("format", "json");
+                    .queryParam("hs_code", hsCode)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json");
                     
                     // API 키가 없으면 설정에서 가져오기
                     String finalApiKey = apiKey != null && !apiKey.isBlank() ? apiKey : apiKeysProperties.getCbpKey();
@@ -571,14 +571,14 @@ public class RequirementsApiClient {
                         b.queryParam("api_key", finalApiKey);
                     }
                     
-                    URI uri = b.build(true).toUri();
+            URI uri = b.build(true).toUri();
                     log.info("📡 CBP API 시도: {}", uri);
                     
-                    ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
                     
-                    if (resp.getStatusCode().is2xxSuccessful()) {
-                        String body = resp.getBody();
-                        if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+            if (resp.getStatusCode().is2xxSuccessful()) {
+                String body = resp.getBody();
+                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
                             JsonNode json = objectMapper.readTree(body);
                             int resultCount = json.isArray() ? json.size() : 1;
                             log.info("✅ CBP API 성공: {}개 결과", resultCount);
@@ -586,7 +586,7 @@ public class RequirementsApiClient {
                         } else {
                             log.info("⚠️ CBP API 비-JSON 응답 (HTML 등), 다음 엔드포인트 시도");
                         }
-                    } else {
+                } else {
                         log.warn("⚠️ CBP API 엔드포인트 실패: {}", resp.getStatusCode());
                     }
                 } catch (Exception e) {
@@ -598,6 +598,166 @@ public class RequirementsApiClient {
             log.warn("❌ CBP API 모든 엔드포인트 실패");
         } catch (Exception e) {
             log.warn("❌ CBP API 호출 실패: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    // NTIA (National Telecommunications and Information Administration) API
+    public Optional<JsonNode> callNtiaSpectrumData(String query) {
+        try {
+            log.info("🔍 NTIA NBAM API 호출: '{}'", query);
+            
+            String endpointUrl = apiEndpointsManager.getEndpoint("ntia", "nbam_api", "search");
+            URI uri = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("q", query)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json")
+                    .build(true)
+                    .toUri();
+            
+            log.info("📡 NTIA NBAM API 시도: {}", uri);
+            
+            ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                int resultCount = json.isArray() ? json.size() : 1;
+                log.info("✅ NTIA NBAM API 성공: {}개 결과", resultCount);
+                return Optional.of(json);
+            }
+            
+            log.warn("❌ NTIA NBAM API 응답 실패: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.warn("❌ NTIA NBAM API 호출 실패: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    // DOT (Department of Transportation) API
+    public Optional<JsonNode> callDotSafetyData(String query) {
+        try {
+            log.info("🔍 DOT Safety Data API 호출: '{}'", query);
+            
+            String endpointUrl = apiEndpointsManager.getEndpoint("dot", "safety_data", "nhtsa");
+            URI uri = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("q", query)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json")
+                    .build(true)
+                    .toUri();
+            
+            log.info("📡 DOT API 시도: {}", uri);
+            
+            ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                int resultCount = json.isArray() ? json.size() : 1;
+                log.info("✅ DOT Safety Data 성공: {}개 결과", resultCount);
+                return Optional.of(json);
+            }
+            
+            log.warn("❌ DOT Safety Data 응답 실패: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.warn("❌ DOT Safety Data 호출 실패: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    // DOE (Department of Energy) API
+    public Optional<JsonNode> callDoeEnergyData(String query) {
+        try {
+            log.info("🔍 DOE PAGES API 호출: '{}'", query);
+            
+            String endpointUrl = apiEndpointsManager.getEndpoint("doe", "pages_api", "records");
+            URI uri = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("q", query)
+                    .queryParam("rows", 10)
+                    .queryParam("page", 1)
+                    .build(true)
+                    .toUri();
+            
+            log.info("📡 DOE PAGES API 시도: {}", uri);
+            
+            ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                int resultCount = json.isArray() ? json.size() : 1;
+                log.info("✅ DOE PAGES API 성공: {}개 결과", resultCount);
+                return Optional.of(json);
+            }
+            
+            log.warn("❌ DOE PAGES API 응답 실패: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.warn("❌ DOE PAGES API 호출 실패: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    // DOI (Department of the Interior) API
+    public Optional<JsonNode> callDoiNaturalResources(String query) {
+        try {
+            log.info("🔍 DOI Natural Resources API 호출: '{}'", query);
+            
+            String endpointUrl = apiEndpointsManager.getEndpoint("doi", "natural_resources", "minerals");
+            URI uri = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("q", query)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json")
+                    .build(true)
+                    .toUri();
+            
+            log.info("📡 DOI API 시도: {}", uri);
+            
+            ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                int resultCount = json.isArray() ? json.size() : 1;
+                log.info("✅ DOI Natural Resources 성공: {}개 결과", resultCount);
+                return Optional.of(json);
+            }
+            
+            log.warn("❌ DOI Natural Resources 응답 실패: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.warn("❌ DOI Natural Resources 호출 실패: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    // DOL (Department of Labor) API
+    public Optional<JsonNode> callDolEmploymentData(String query) {
+        try {
+            log.info("🔍 DOL Data Portal API 호출: '{}'", query);
+            
+            String endpointUrl = apiEndpointsManager.getEndpoint("dol", "data_portal", "api");
+            URI uri = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("q", query)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json")
+                    .build(true)
+                    .toUri();
+            
+            log.info("📡 DOL Data Portal API 시도: {}", uri);
+            
+            ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                int resultCount = json.isArray() ? json.size() : 1;
+                log.info("✅ DOL Data Portal API 성공: {}개 결과", resultCount);
+                return Optional.of(json);
+            }
+            
+            log.warn("❌ DOL Data Portal API 응답 실패: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.warn("❌ DOL Data Portal API 호출 실패: {}", e.getMessage());
         }
         return Optional.empty();
     }

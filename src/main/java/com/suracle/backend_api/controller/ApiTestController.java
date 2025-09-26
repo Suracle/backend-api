@@ -434,4 +434,154 @@ public class ApiTestController {
         
         return ResponseEntity.ok(allResults);
     }
+
+    // NTIA Spectrum Data API 테스트
+    @GetMapping("/ntia/spectrum-data")
+    public ResponseEntity<Map<String, Object>> testNtiaSpectrumData(
+            @RequestParam(defaultValue = "5g") String query) {
+        log.info("☕ [Spring Boot] NTIA Spectrum Data API 테스트: {}", query);
+        Map<String, Object> result = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        Optional<JsonNode> response = requirementsApiClient.callNtiaSpectrumData(query);
+        long responseTime = System.currentTimeMillis() - startTime;
+        
+        result.put("success", response.isPresent());
+        result.put("platform", "Spring Boot");
+        result.put("api", "NTIA Spectrum Data");
+        result.put("query", query);
+        result.put("resultCount", response.map(JsonNode::size).orElse(0));
+        result.put("responseTimeMs", responseTime);
+        result.put("timestamp", Instant.now().toString());
+        result.put("endpoint", "https://www.ntia.gov/data/spectrum-map");
+        
+        if (response.isPresent()) {
+            log.info("✅ [Spring Boot] NTIA Spectrum Data 성공 ({}ms)", responseTime);
+        } else {
+            log.warn("❌ [Spring Boot] NTIA Spectrum Data 실패 ({}ms)", responseTime);
+            result.put("error", "API 호출 결과가 없습니다");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+
+    // DOT Safety Data API 테스트
+    @GetMapping("/dot/safety-data")
+    public ResponseEntity<Map<String, Object>> testDotSafetyData(
+            @RequestParam(defaultValue = "vehicle") String query) {
+        log.info("☕ [Spring Boot] DOT Safety Data API 테스트: {}", query);
+        Map<String, Object> result = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        Optional<JsonNode> response = requirementsApiClient.callDotSafetyData(query);
+        long responseTime = System.currentTimeMillis() - startTime;
+        
+        result.put("success", response.isPresent());
+        result.put("platform", "Spring Boot");
+        result.put("api", "DOT Safety Data");
+        result.put("query", query);
+        result.put("resultCount", response.map(JsonNode::size).orElse(0));
+        result.put("responseTimeMs", responseTime);
+        result.put("timestamp", Instant.now().toString());
+        result.put("endpoint", "https://www.nhtsa.gov/api");
+        
+        if (response.isPresent()) {
+            log.info("✅ [Spring Boot] DOT Safety Data 성공 ({}ms)", responseTime);
+        } else {
+            log.warn("❌ [Spring Boot] DOT Safety Data 실패 ({}ms)", responseTime);
+            result.put("error", "API 호출 결과가 없습니다");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+
+    // DOE Energy Data API 테스트
+    @GetMapping("/doe/energy-data")
+    public ResponseEntity<Map<String, Object>> testDoeEnergyData(
+            @RequestParam(defaultValue = "petroleum") String query) {
+        log.info("☕ [Spring Boot] DOE Energy Data API 테스트: {}", query);
+        Map<String, Object> result = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        Optional<JsonNode> response = requirementsApiClient.callDoeEnergyData(query);
+        long responseTime = System.currentTimeMillis() - startTime;
+        
+        result.put("success", response.isPresent());
+        result.put("platform", "Spring Boot");
+        result.put("api", "DOE Energy Data");
+        result.put("query", query);
+        result.put("resultCount", response.map(JsonNode::size).orElse(0));
+        result.put("responseTimeMs", responseTime);
+        result.put("timestamp", Instant.now().toString());
+        result.put("endpoint", "https://api.eia.gov/petroleum");
+        
+        if (response.isPresent()) {
+            log.info("✅ [Spring Boot] DOE Energy Data 성공 ({}ms)", responseTime);
+        } else {
+            log.warn("❌ [Spring Boot] DOE Energy Data 실패 ({}ms)", responseTime);
+            result.put("error", "API 호출 결과가 없습니다");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+
+    // DOI Natural Resources API 테스트
+    @GetMapping("/doi/natural-resources")
+    public ResponseEntity<Map<String, Object>> testDoiNaturalResources(
+            @RequestParam(defaultValue = "minerals") String query) {
+        log.info("☕ [Spring Boot] DOI Natural Resources API 테스트: {}", query);
+        Map<String, Object> result = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        Optional<JsonNode> response = requirementsApiClient.callDoiNaturalResources(query);
+        long responseTime = System.currentTimeMillis() - startTime;
+        
+        result.put("success", response.isPresent());
+        result.put("platform", "Spring Boot");
+        result.put("api", "DOI Natural Resources");
+        result.put("query", query);
+        result.put("resultCount", response.map(JsonNode::size).orElse(0));
+        result.put("responseTimeMs", responseTime);
+        result.put("timestamp", Instant.now().toString());
+        result.put("endpoint", "https://data.doi.gov/Minerals");
+        
+        if (response.isPresent()) {
+            log.info("✅ [Spring Boot] DOI Natural Resources 성공 ({}ms)", responseTime);
+        } else {
+            log.warn("❌ [Spring Boot] DOI Natural Resources 실패 ({}ms)", responseTime);
+            result.put("error", "API 호출 결과가 없습니다");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+
+    // DOL Employment Data API 테스트
+    @GetMapping("/dol/employment-data")
+    public ResponseEntity<Map<String, Object>> testDolEmploymentData(
+            @RequestParam(defaultValue = "unemployment") String query) {
+        log.info("☕ [Spring Boot] DOL Employment Data API 테스트: {}", query);
+        Map<String, Object> result = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        Optional<JsonNode> response = requirementsApiClient.callDolEmploymentData(query);
+        long responseTime = System.currentTimeMillis() - startTime;
+        
+        result.put("success", response.isPresent());
+        result.put("platform", "Spring Boot");
+        result.put("api", "DOL Employment Data");
+        result.put("query", query);
+        result.put("resultCount", response.map(JsonNode::size).orElse(0));
+        result.put("responseTimeMs", responseTime);
+        result.put("timestamp", Instant.now().toString());
+        result.put("endpoint", "https://api.dol.gov/unemployment");
+        
+        if (response.isPresent()) {
+            log.info("✅ [Spring Boot] DOL Employment Data 성공 ({}ms)", responseTime);
+        } else {
+            log.warn("❌ [Spring Boot] DOL Employment Data 실패 ({}ms)", responseTime);
+            result.put("error", "API 호출 결과가 없습니다");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
 }
