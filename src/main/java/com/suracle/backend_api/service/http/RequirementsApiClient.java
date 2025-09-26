@@ -3,6 +3,8 @@ package com.suracle.backend_api.service.http;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.suracle.backend_api.config.ApiEndpointsManager;
+import com.suracle.backend_api.config.ApiKeysProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -17,7 +19,10 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Component
@@ -25,6 +30,8 @@ import java.util.Optional;
 @Slf4j
 public class RequirementsApiClient {
 
+    private final ApiEndpointsManager apiEndpointsManager;
+    private final ApiKeysProperties apiKeysProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = createRestTemplate();
 
@@ -48,18 +55,12 @@ public class RequirementsApiClient {
             String name = englishName == null ? "" : englishName.trim();
             log.info("🔍 FDA Cosmetic Event API 호출 시작: '{}'", name);
             
-            // openFDA cosmetics: correct base path is plural 'cosmetics'
-            URI base = URI.create("https://api.fda.gov/cosmetics/event.json");
-            // String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
+            // ApiEndpointsManager를 사용하여 엔드포인트 가져오기
+            URI base = URI.create(apiEndpointsManager.getEndpoint("fda", "cosmetic", "event"));
 
-            // AND token query first
+            // 단순한 검색어로 시도 (FDA API는 복잡한 쿼리를 지원하지 않을 수 있음)
             {
-                String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
-                String tokenExpr = String.join(" AND ", tokens);
-                if (tokenExpr.isEmpty()) {
-                    tokenExpr = name;
-                }
-                String searchQuery = "products.name_brand:(" + tokenExpr + ")";
+                String searchQuery = name.isEmpty() ? "cosmetic" : name;
                 URI uri = UriComponentsBuilder.fromUri(base)
                         .queryParam("search", searchQuery)
                         .queryParam("limit", 10)
@@ -152,7 +153,8 @@ public class RequirementsApiClient {
             String name = englishName == null ? "" : englishName.trim();
             log.info("🔍 FDA Food Enforcement API 호출 시작: '{}'", name);
             
-            URI base = URI.create("https://api.fda.gov/food/enforcement.json");
+            // ApiEndpointsManager를 사용하여 엔드포인트 가져오기
+            URI base = URI.create(apiEndpointsManager.getEndpoint("fda", "food", "enforcement"));
 
             // 1) AND tokens
             {
@@ -244,7 +246,8 @@ public class RequirementsApiClient {
             String name = englishName == null ? "" : englishName.trim();
             log.info("🔍 FDA Food Event API 호출 시작: '{}'", name);
             
-            URI base = URI.create("https://api.fda.gov/food/event.json");
+            // ApiEndpointsManager를 사용하여 엔드포인트 가져오기
+            URI base = URI.create(apiEndpointsManager.getEndpoint("fda", "food", "event"));
             // 1) AND tokens
             {
                 String[] tokens = name.isEmpty() ? new String[0] : name.split("\\s+");
@@ -338,6 +341,7 @@ public class RequirementsApiClient {
                     .encode(StandardCharsets.UTF_8)
                     .toUriString()
                     .substring(1);
+            // EPA SRS chemname 엔드포인트는 특별한 형태이므로 직접 구성
             URI uri = URI.create("https://cdxapps.epa.gov/ords/srs/srs_api/chemname/" + encoded);
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.set(org.springframework.http.HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
@@ -374,13 +378,18 @@ public class RequirementsApiClient {
 
     public Optional<JsonNode> callUsdaFoodDataCentralSearch(String englishName, String apiKey) {
         try {
+            // ApiEndpointsManager를 사용하여 엔드포인트 가져오기
+            String endpointUrl = apiEndpointsManager.getEndpoint("usda", "fooddata_central", "search");
             UriComponentsBuilder b = UriComponentsBuilder
-                    .fromUriString("https://api.nal.usda.gov/fdc/v1/foods/search")
+                    .fromUriString(endpointUrl)
                     .queryParam("query", englishName)
                     .queryParam("pageSize", 10)
                     .queryParam("pageNumber", 1);
-            if (apiKey != null && !apiKey.isBlank()) {
-                b.queryParam("api_key", apiKey);
+            
+            // API 키가 없으면 설정에서 가져오기
+            String finalApiKey = apiKey != null && !apiKey.isBlank() ? apiKey : apiKeysProperties.getUsdaKey();
+            if (finalApiKey != null && !finalApiKey.isBlank()) {
+                b.queryParam("api_key", finalApiKey);
             }
             URI uri = b.build(true).toUri();
             ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
@@ -396,57 +405,63 @@ public class RequirementsApiClient {
 
     public Optional<JsonNode> callFccDeviceAuthorizationGrants(String deviceName) {
         try {
-            String raw = deviceName == null ? "" : deviceName.trim();
-            String[] tokens = raw.isEmpty() ? new String[0] : raw.split("\\s+");
-            String spaceExpr = String.join(" ", tokens);
-            String orExpr = String.join(" OR ", tokens);
-            if (spaceExpr.isEmpty()) spaceExpr = raw;
-            if (orExpr.isEmpty()) orExpr = raw;
+            log.info("🔍 FCC API 호출: '{}'", deviceName);
+            
+            // FCC Public Files API의 다양한 엔드포인트 시도
+            String[] endpoints = {
+                apiEndpointsManager.getEndpoint("fcc", "service_data", "facility_search"),
+                apiEndpointsManager.getEndpoint("fcc", "public_files", "search"),
+                apiEndpointsManager.getEndpoint("fcc", "public_files", "stations"),
+                apiEndpointsManager.getEndpoint("fcc", "public_files", "file_history"),
+                apiEndpointsManager.getEndpoint("fcc", "manager_api", "search_files_folders"),
+                apiEndpointsManager.getEndpoint("fcc", "device_authorization", "grants")
+            };
+            
+            for (String endpointUrl : endpoints) {
+                try {
+                    URI uri;
+                    
+                    // 엔드포인트에 {keyword} 또는 {searchKey}가 있으면 경로 파라미터로 처리
+                    if (endpointUrl.contains("{keyword}")) {
+                        uri = UriComponentsBuilder
+                                .fromUriString(endpointUrl.replace("{keyword}", deviceName))
+                                .build(true)
+                                .toUri();
+                    } else if (endpointUrl.contains("{searchKey}")) {
+                        uri = UriComponentsBuilder
+                                .fromUriString(endpointUrl.replace("{searchKey}", deviceName))
+                                .build(true)
+                                .toUri();
+                    } else {
+                        // 쿼리 파라미터로 처리
+                        uri = UriComponentsBuilder
+                                .fromUriString(endpointUrl)
+                                .queryParam("q", deviceName)
+                                .queryParam("limit", 10)
+                                .queryParam("format", "json")
+                                .build(true)
+                                .toUri();
+                    }
 
-            String[] strategies = new String[]{"and_tokens", "or_tokens"};
-            String[] values = new String[]{spaceExpr, orExpr};
-
-            for (int i = 0; i < strategies.length; i++) {
-                String strat = strategies[i];
-                String val = values[i].replace(' ', '+');
-                URI uri = UriComponentsBuilder
-                        .fromUriString("https://api.fcc.gov/device/authorization/grants")
-                        .queryParam("search", "device_name:" + val)
-                        .queryParam("limit", 10)
-                        .queryParam("format", "json")
-                        .build(true)
-                        .toUri();
-
-                int maxRetries = 3;
-                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                    log.info("📡 FCC API 시도: {}", uri);
+                    
                     ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
                     if (resp.getStatusCode().is2xxSuccessful()) {
                         String body = resp.getBody();
                         if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
                             JsonNode json = objectMapper.readTree(body);
-                            if (json.isObject()) {
-                                ObjectNode meta = ((ObjectNode) json).with("_meta");
-                                meta.put("strategy", strat);
-                                meta.put("query_used", "device_name:" + val);
-                            }
+                            int resultCount = json.isArray() ? json.size() : 1;
+                            log.info("✅ FCC API 성공: {}개 결과", resultCount);
                             return Optional.of(json);
-                        } else {
-                            log.info("FCC grants returned non-JSON body (likely HTML), ignoring");
-                            break;
                         }
                     }
-                    int code = resp.getStatusCode().value();
-                    if (code == 502 && attempt < maxRetries) {
-                        long backoffMs = (long) Math.pow(2, attempt - 1) * 1000L;
-                        log.info("FCC 502 received, retrying attempt {}/{} after {}ms", attempt, maxRetries, backoffMs);
-                        try { Thread.sleep(backoffMs); } catch (InterruptedException ignored) {}
-                        continue;
-                    } else {
-                        log.info("FCC grants non-2xx: {}", resp.getStatusCode());
-                        break;
-                    }
+                } catch (Exception e) {
+                    log.warn("⚠️ FCC API 엔드포인트 실패: {}", e.getMessage());
+                    continue;
                 }
             }
+            
+            log.warn("❌ FCC API 모든 엔드포인트 실패");
         } catch (Exception e) {
             log.warn("FCC grants call failed: {}", e.toString());
         }
@@ -470,10 +485,13 @@ public class RequirementsApiClient {
             for (String[] t : tries) {
                 String strat = t[0];
                 String val = t[1];
+                // ApiEndpointsManager를 사용하여 엔드포인트 가져오기 (SaferProducts 우선)
+                String endpointUrl = apiEndpointsManager.getEndpoint("cpsc", "saferproducts", "recalls");
                 URI uri = UriComponentsBuilder
-                        .fromUriString("https://www.cpsc.gov/Recalls/CPSC-Recalls-API/recalls.json")
-                        .queryParam("search", val)
-                        .queryParam("limit", 10)
+                        .fromUriString(endpointUrl)
+                        .queryParam("format", "json")
+                        .queryParam("RecallDescription", val)
+                        .queryParam("resultsPerPage", 10)
                         .build(true)
                         .toUri();
                 ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
@@ -495,10 +513,11 @@ public class RequirementsApiClient {
                 }
             }
 
-            // Fallback: SaferProducts.gov official JSON API
+            // Fallback: SaferProducts.gov official JSON API (업데이트된 URL 사용)
             try {
+                String saferProductsUrl = apiEndpointsManager.getEndpoint("cpsc", "saferproducts", "api");
                 URI sp = UriComponentsBuilder
-                        .fromUriString("https://www.saferproducts.gov/RestWebServices/Recall")
+                        .fromUriString(saferProductsUrl)
                         .queryParam("format", "json")
                         .queryParam("RecallDescription", englishName == null ? "" : englishName)
                         .queryParam("resultsPerPage", 10)
@@ -529,27 +548,56 @@ public class RequirementsApiClient {
 
     public Optional<JsonNode> callCbpTradeStatisticsHsCodes(String hsCode, String apiKey) {
         try {
-            UriComponentsBuilder b = UriComponentsBuilder
-                    .fromUriString("https://api.cbp.gov/trade/statistics/hs-codes")
-                    .queryParam("hs_code", hsCode)
-                    .queryParam("limit", 10)
-                    .queryParam("format", "json");
-            if (apiKey != null && !apiKey.isBlank()) {
-                b.queryParam("api_key", apiKey);
-            }
-            URI uri = b.build(true).toUri();
-            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
-            if (resp.getStatusCode().is2xxSuccessful()) {
-                String body = resp.getBody();
-                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
-                    return Optional.of(objectMapper.readTree(body));
-                } else {
-                    log.info("CBP trade statistics returned non-JSON body (likely HTML), ignoring");
+            log.info("🔍 CBP API 호출: HS Code '{}'", hsCode);
+            
+            // CBP AESDirect API와 Public Data Portal 모두 시도
+            String[] endpoints = {
+                apiEndpointsManager.getEndpoint("cbp", "aesdirect", "weblink_inquiry"),
+                apiEndpointsManager.getEndpoint("cbp", "public_data_portal", "trade_stats"),
+                apiEndpointsManager.getEndpoint("cbp", "trade_statistics", "hs_codes")
+            };
+            
+            for (String endpointUrl : endpoints) {
+                try {
+                    UriComponentsBuilder b = UriComponentsBuilder
+                            .fromUriString(endpointUrl)
+                            .queryParam("hs_code", hsCode)
+                            .queryParam("limit", 10)
+                            .queryParam("format", "json");
+                    
+                    // API 키가 없으면 설정에서 가져오기
+                    String finalApiKey = apiKey != null && !apiKey.isBlank() ? apiKey : apiKeysProperties.getCbpKey();
+                    if (finalApiKey != null && !finalApiKey.isBlank()) {
+                        b.queryParam("api_key", finalApiKey);
+                    }
+                    
+                    URI uri = b.build(true).toUri();
+                    log.info("📡 CBP API 시도: {}", uri);
+                    
+                    ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+                    
+                    if (resp.getStatusCode().is2xxSuccessful()) {
+                        String body = resp.getBody();
+                        if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                            JsonNode json = objectMapper.readTree(body);
+                            int resultCount = json.isArray() ? json.size() : 1;
+                            log.info("✅ CBP API 성공: {}개 결과", resultCount);
+                            return Optional.of(json);
+                        } else {
+                            log.info("⚠️ CBP API 비-JSON 응답 (HTML 등), 다음 엔드포인트 시도");
+                        }
+                    } else {
+                        log.warn("⚠️ CBP API 엔드포인트 실패: {}", resp.getStatusCode());
+                    }
+                } catch (Exception e) {
+                    log.warn("⚠️ CBP API 엔드포인트 실패: {}", e.getMessage());
+                    continue;
                 }
             }
-            log.info("CBP trade statistics non-2xx: {}", resp.getStatusCode());
+            
+            log.warn("❌ CBP API 모든 엔드포인트 실패");
         } catch (Exception e) {
-            log.warn("CBP trade statistics call failed: {}", e.toString());
+            log.warn("❌ CBP API 호출 실패: {}", e.getMessage());
         }
         return Optional.empty();
     }
@@ -571,8 +619,10 @@ public class RequirementsApiClient {
             for (String[] t : tries) {
                 String strat = t[0];
                 String val = t[1];
+                // ApiEndpointsManager를 사용하여 엔드포인트 가져오기
+                String endpointUrl = apiEndpointsManager.getEndpoint("epa", "chemicals", "search");
                 URI uri = UriComponentsBuilder
-                        .fromUriString("https://comptox.epa.gov/dashboard/api/chemical/search")
+                        .fromUriString(endpointUrl)
                         .queryParam("search", val)
                         .queryParam("limit", 10)
                         .build(true)
@@ -601,6 +651,185 @@ public class RequirementsApiClient {
             // log.warn("❌ EPA CompTox 호출 실패: {}", e.getMessage());
         }
         return Optional.empty();
+    }
+    
+    /**
+     * EPA Envirofacts Chemical Search API 호출
+     */
+    public Optional<JsonNode> callEpaEnvirofactsSearch(String query) {
+        try {
+            log.info("🔍 EPA Envirofacts Chemical Search API 호출: '{}'", query);
+            
+            // 여러 EPA 테이블에서 시도
+            String[] endpoints = {
+                apiEndpointsManager.getEndpoint("epa", "envirofacts", "chemical_search"),
+                apiEndpointsManager.getEndpoint("epa", "envirofacts", "facility_search"),
+                apiEndpointsManager.getEndpoint("epa", "envirofacts", "tri_search"),
+                apiEndpointsManager.getEndpoint("epa", "envirofacts", "rcra_search")
+            };
+            
+            for (String endpointUrl : endpoints) {
+                try {
+                    String finalUrl = endpointUrl.replace("{query}", query);
+                    log.info("📡 EPA Envirofacts 시도: {}", finalUrl);
+                    
+                    ResponseEntity<String> response = restTemplate.getForEntity(finalUrl, String.class);
+                    
+                    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                        JsonNode json = objectMapper.readTree(response.getBody());
+                        int resultCount = json.isArray() ? json.size() : 1;
+                        log.info("✅ EPA Envirofacts 성공: {}개 결과", resultCount);
+                        return Optional.of(json);
+                    }
+                } catch (Exception e) {
+                    log.warn("⚠️ EPA Envirofacts 엔드포인트 실패: {}", e.getMessage());
+                    continue;
+                }
+            }
+            
+            log.warn("❌ EPA Envirofacts 모든 엔드포인트 실패");
+        } catch (Exception e) {
+            log.warn("❌ EPA Envirofacts Chemical Search 호출 실패: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+    
+    // Tavily Search는 AI Engine (Python)에서 처리됩니다
+    // Backend API에서는 정부 기관의 직접 API만 처리합니다
+    
+    /**
+     * Commerce Aluminum Import Monitor API 호출
+     */
+    public Optional<JsonNode> callCommerceAluminumImportMonitor(String hsCode) {
+        try {
+            String endpointUrl = apiEndpointsManager.getEndpoint("commerce", "aluminum_import", "monitoring");
+            UriComponentsBuilder b = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("hs_code", hsCode)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json");
+            
+            URI uri = b.build(true).toUri();
+            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+            if (resp.getStatusCode().is2xxSuccessful()) {
+                String body = resp.getBody();
+                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    return Optional.of(objectMapper.readTree(body));
+                }
+            }
+            log.info("Commerce Aluminum Import Monitor non-2xx: {}", resp.getStatusCode());
+        } catch (Exception e) {
+            log.warn("Commerce Aluminum Import Monitor call failed: {}", e.toString());
+        }
+        return Optional.empty();
+    }
+    
+    /**
+     * Commerce Steel Import Monitoring API 호출
+     */
+    public Optional<JsonNode> callCommerceSteelImportMonitoring(String hsCode) {
+        try {
+            String endpointUrl = apiEndpointsManager.getEndpoint("commerce", "steel_import", "monitoring");
+            UriComponentsBuilder b = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("hs_code", hsCode)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json");
+            
+            URI uri = b.build(true).toUri();
+            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+            if (resp.getStatusCode().is2xxSuccessful()) {
+                String body = resp.getBody();
+                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    return Optional.of(objectMapper.readTree(body));
+                }
+            }
+            log.info("Commerce Steel Import Monitoring non-2xx: {}", resp.getStatusCode());
+        } catch (Exception e) {
+            log.warn("Commerce Steel Import Monitoring call failed: {}", e.toString());
+        }
+        return Optional.empty();
+    }
+    
+    /**
+     * CBP ACE Portal API 호출
+     */
+    public Optional<JsonNode> callCbpAcePortal(String hsCode) {
+        try {
+            String endpointUrl = apiEndpointsManager.getEndpoint("cbp", "ace_portal", "api");
+            UriComponentsBuilder b = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("hs_code", hsCode)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json");
+            
+            // API 키가 필요하면 설정에서 가져오기
+            String apiKey = apiKeysProperties.getCbpKey();
+            if (apiKey != null && !apiKey.isBlank()) {
+                b.queryParam("api_key", apiKey);
+            }
+            
+            URI uri = b.build(true).toUri();
+            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+            if (resp.getStatusCode().is2xxSuccessful()) {
+                String body = resp.getBody();
+                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    return Optional.of(objectMapper.readTree(body));
+                }
+            }
+            log.info("CBP ACE Portal non-2xx: {}", resp.getStatusCode());
+        } catch (Exception e) {
+            log.warn("CBP ACE Portal call failed: {}", e.toString());
+        }
+        return Optional.empty();
+    }
+    
+    /**
+     * FCC EAS Equipment Authorization API 호출
+     */
+    public Optional<JsonNode> callFccEasEquipmentAuthorization(String deviceName) {
+        try {
+            String endpointUrl = apiEndpointsManager.getEndpoint("fcc", "eas_equipment", "base");
+            UriComponentsBuilder b = UriComponentsBuilder
+                    .fromUriString(endpointUrl)
+                    .queryParam("search", deviceName)
+                    .queryParam("limit", 10)
+                    .queryParam("format", "json");
+            
+            URI uri = b.build(true).toUri();
+            ResponseEntity<String> resp = restTemplate.getForEntity(uri, String.class);
+            if (resp.getStatusCode().is2xxSuccessful()) {
+                String body = resp.getBody();
+                if (body != null && (body.trim().startsWith("{") || body.trim().startsWith("["))) {
+                    return Optional.of(objectMapper.readTree(body));
+                }
+            }
+            log.info("FCC EAS Equipment Authorization non-2xx: {}", resp.getStatusCode());
+        } catch (Exception e) {
+            log.warn("FCC EAS Equipment Authorization call failed: {}", e.toString());
+        }
+        return Optional.empty();
+    }
+    
+    /**
+     * API 엔드포인트 정보 조회 (디버깅/관리용)
+     */
+    public Map<String, Object> getApiEndpointsInfo() {
+        Map<String, Object> info = new HashMap<>();
+        info.put("agencies", apiEndpointsManager.getAllAgencies());
+        
+        Map<String, Object> agencyDetails = new HashMap<>();
+        for (String agency : apiEndpointsManager.getAllAgencies()) {
+            Map<String, Object> details = new HashMap<>();
+            details.put("baseUrl", apiEndpointsManager.getBaseUrl(agency));
+            details.put("apiKeyRequired", apiEndpointsManager.isApiKeyRequired(agency));
+            details.put("rateLimit", apiEndpointsManager.getRateLimit(agency));
+            details.put("endpoints", apiEndpointsManager.getAllEndpoints(agency));
+            agencyDetails.put(agency, details);
+        }
+        info.put("agencyDetails", agencyDetails);
+        
+        return info;
     }
 }
 

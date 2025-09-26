@@ -14,6 +14,10 @@ public class ApiKeysProperties {
     private String cbpKey;
     private String dataGovKey;
     private String epaKey;
+    private String tavilyKey;
+    private String commerceKey;
+    private String fccKey;
+    private String cpscKey;
 }
 
 
