@@ -399,4 +399,22 @@ public class RequirementsApiClient {
         
         return Optional.empty();
     }
+    
+    /**
+     * API 엔드포인트 정보 조회
+     * AI 엔진에서 사용하는 API 엔드포인트 정보 반환
+     */
+    public java.util.Map<String, Object> getApiEndpointsInfo() {
+        java.util.Map<String, Object> endpointsInfo = new java.util.HashMap<>();
+        java.util.List<String> agencies = java.util.Arrays.asList(
+            "FDA", "EPA", "USDA", "CPSC", "FCC", "CBP"
+        );
+        
+        endpointsInfo.put("agencies", agencies);
+        endpointsInfo.put("total_endpoints", agencies.size());
+        endpointsInfo.put("timestamp", java.time.Instant.now().toString());
+        
+        log.info("✅ API 엔드포인트 정보 반환: {}개 기관", agencies.size());
+        return endpointsInfo;
+    }
 }

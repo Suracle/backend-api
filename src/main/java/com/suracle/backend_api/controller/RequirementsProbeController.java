@@ -8,11 +8,17 @@ import com.suracle.backend_api.config.ApiKeysProperties;
 import com.suracle.backend_api.service.util.EnglishNameUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
  
 
@@ -25,6 +31,7 @@ public class RequirementsProbeController {
     private final RequirementsApiClient client;
     private final ApiKeysProperties keys;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate;
 
     @GetMapping(value = "/all", produces = "application/json; charset=UTF-8")
     public ResponseEntity<JsonNode> probeAll(
@@ -69,7 +76,7 @@ public class RequirementsProbeController {
         String effectiveUsda = (usdaKey != null && !usdaKey.isBlank()) ? usdaKey : keys.getUsdaKey();
         String effectiveCbp = (cbpKey != null && !cbpKey.isBlank()) ? cbpKey : keys.getCbpKey();
 
-        client.callUsdaFoodDataCentralSearch(english, effectiveUsda).ifPresentOrElse(json -> {
+        client.callUsdaFoodDataCentralSearch(english, null).ifPresentOrElse(json -> {
             results.put("usda_fooddata_search", true);
             if (includePayloads) results.set("usda_fooddata_search_payload", json);
         }, () -> results.put("usda_fooddata_search", false));
@@ -161,13 +168,45 @@ public class RequirementsProbeController {
     }
 
     /**
-     * 제품명에서 핵심 키워드만 추출하여 API 검색에 최적화된 영어 검색어 생성
+     * AI 엔진에서 키워드 추출하여 첫 번째 키워드 반환 (fallback: 기존 로직)
      */
     private String extractCoreKeyword(String productName) {
         if (productName == null || productName.isBlank()) {
             return "";
         }
         
+        try {
+            // AI 엔진에서 키워드 추출 시도
+            String aiEngineUrl = "http://localhost:8000/keywords/extract";
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("product_name", productName);
+            requestBody.put("product_description", "");
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(aiEngineUrl, requestBody, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                List<String> keywords = (List<String>) responseBody.get("keywords");
+                
+                if (keywords != null && !keywords.isEmpty()) {
+                    // 첫 번째 키워드 반환
+                    String firstKeyword = keywords.get(0);
+                    log.info("AI 엔진에서 키워드 추출 성공: {} -> {}", productName, firstKeyword);
+                    return firstKeyword;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("AI 엔진 키워드 추출 실패, fallback 로직 사용: {}", e.getMessage());
+        }
+        
+        // Fallback: 기존 로직 사용
+        return extractCoreKeywordFallback(productName);
+    }
+    
+    /**
+     * 기존 키워드 추출 로직 (fallback)
+     */
+    private String extractCoreKeywordFallback(String productName) {
         String lower = productName.toLowerCase().trim();
         
         // 1. 한글 핵심 키워드 매핑 (우선순위 높음)

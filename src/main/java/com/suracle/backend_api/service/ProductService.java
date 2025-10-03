@@ -4,8 +4,10 @@ import com.suracle.backend_api.dto.product.ProductListResponseDto;
 import com.suracle.backend_api.dto.product.ProductRequestDto;
 import com.suracle.backend_api.dto.precedents.PrecedentsResponseDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
+import com.suracle.backend_api.entity.product.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.util.Map;
 import java.util.Optional;
 
 public interface ProductService {
@@ -72,4 +74,23 @@ public interface ProductService {
      * @return 판례 분석 결과
      */
     PrecedentsResponseDto getProductPrecedents(String productId);
+    
+    /**
+     * 판례 분석 결과 저장
+     * @param product 상품 정보
+     * @param analysisResult 판례 분석 결과
+     */
+    void savePrecedentsAnalysisResult(Product product, Map<String, Object> analysisResult);
+    
+    /**
+     * 요구사항 분석 결과 저장
+     * @param product 상품 정보
+     * @param analysisResult 요구사항 분석 결과
+     */
+    void saveRequirementsAnalysisResult(Product product, Map<String, Object> analysisResult);
+
+    /**
+     * 분석 결과 저장 (제네릭)
+     */
+    void saveAnalysisResult(Product product, Map<String, Object> analysisResult);
 }

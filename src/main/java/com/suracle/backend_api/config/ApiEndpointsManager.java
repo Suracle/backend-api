@@ -465,5 +465,13 @@ public class ApiEndpointsManager {
         private final boolean apiKeyRequired;
         private final String rateLimit;
         private final Map<String, Map<String, String>> endpoints;
+        
+        public AgencyConfig(String name, String baseUrl, boolean apiKeyRequired, String rateLimit, Map<String, Map<String, String>> endpoints) {
+            this.name = name;
+            this.baseUrl = baseUrl;
+            this.apiKeyRequired = apiKeyRequired;
+            this.rateLimit = rateLimit;
+            this.endpoints = endpoints;
+        }
     }
 }

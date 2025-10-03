@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -91,22 +93,95 @@ public class RequirementServiceImpl implements RequirementService {
             boolean isValid = !aiResult.containsKey("error") && "completed".equals(aiResult.get("status"));
             
             Double confidenceScore = 0.85; // 기본값
+            String hsCode = (String) aiResult.get("hs_code");
+            
+            // llm_summary에서 상세 데이터 추출
+            List<String> criticalActions = new ArrayList<>();
+            List<String> requiredDocuments = new ArrayList<>();
+            List<String> complianceSteps = new ArrayList<>();
+            String timeline = "";
+            
             if (aiResult.containsKey("llm_summary")) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> llmSummary = (Map<String, Object>) aiResult.get("llm_summary");
-                if (llmSummary != null && llmSummary.containsKey("confidence_score")) {
-                    confidenceScore = ((Number) llmSummary.get("confidence_score")).doubleValue();
+                if (llmSummary != null) {
+                    // 신뢰도 점수
+                    if (llmSummary.containsKey("confidence_score")) {
+                        confidenceScore = ((Number) llmSummary.get("confidence_score")).doubleValue();
+                    }
+                    
+                    // 타임라인
+                    if (llmSummary.containsKey("timeline")) {
+                        timeline = (String) llmSummary.get("timeline");
+                    }
+                    
+                    // 핵심 요구사항 (critical_requirements를 criticalActions로 매핑)
+                    if (llmSummary.containsKey("critical_requirements")) {
+                        @SuppressWarnings("unchecked")
+                        List<String> criticalReqs = (List<String>) llmSummary.get("critical_requirements");
+                        if (criticalReqs != null) {
+                            criticalActions.addAll(criticalReqs);
+                        }
+                    }
+                    
+                    // 필수 문서 목록
+                    if (llmSummary.containsKey("required_documents")) {
+                        @SuppressWarnings("unchecked")
+                        List<String> docs = (List<String>) llmSummary.get("required_documents");
+                        if (docs != null) {
+                            requiredDocuments.addAll(docs);
+                        }
+                    }
+                    
+                    // 준수 단계
+                    if (llmSummary.containsKey("compliance_steps")) {
+                        @SuppressWarnings("unchecked")
+                        List<String> steps = (List<String>) llmSummary.get("compliance_steps");
+                        if (steps != null) {
+                            complianceSteps.addAll(steps);
+                        }
+                    }
                 }
             }
             
+            // 추천 기관을 sources로 변환
+            List<String> sources = new ArrayList<>();
+            if (aiResult.containsKey("recommended_agencies")) {
+                @SuppressWarnings("unchecked")
+                List<String> agencies = (List<String>) aiResult.get("recommended_agencies");
+                if (agencies != null) {
+                    for (String agency : agencies) {
+                        switch (agency.toUpperCase()) {
+                            case "FDA":
+                                sources.add("https://www.fda.gov/cosmetics/cosmetics-laws-regulations");
+                                break;
+                            case "EPA":
+                                sources.add("https://www.epa.gov/laws-regulations");
+                                break;
+                            case "USDA":
+                                sources.add("https://www.usda.gov/topics");
+                                break;
+                            case "CPSC":
+                                sources.add("https://www.cpsc.gov/Regulations-Laws--Standards");
+                                break;
+                            case "FCC":
+                                sources.add("https://www.fcc.gov/engineering-technology/rules-regulations");
+                                break;
+                            case "CBP":
+                                sources.add("https://www.cbp.gov/trade/programs-administration");
+                                break;
+                        }
+                    }
+                }
+            }
+            
+            // 분석 요약 생성
             StringBuilder analysisSummary = new StringBuilder();
             if (isValid && aiResult.containsKey("recommended_agencies")) {
                 @SuppressWarnings("unchecked")
-                var agencies = (Iterable<?>) aiResult.get("recommended_agencies");
-                if (agencies != null) {
-                    for (Object agency : agencies) {
-                        analysisSummary.append(agency.toString()).append(" ");
-                    }
+                List<String> agencies = (List<String>) aiResult.get("recommended_agencies");
+                if (agencies != null && !agencies.isEmpty()) {
+                    analysisSummary.append("추천 기관: ").append(String.join(", ", agencies));
                 }
             }
             
@@ -119,8 +194,14 @@ public class RequirementServiceImpl implements RequirementService {
             return RequirementAnalysisResponse.builder()
                     .productId(String.valueOf(productId))
                     .productName(productName)
-                    .isValid(isValid)
+                    .hsCode(hsCode != null ? hsCode : "")
+                    .criticalActions(criticalActions)
+                    .requiredDocuments(requiredDocuments)
+                    .complianceSteps(complianceSteps)
+                    .timeline(timeline)
+                    .sources(sources)
                     .confidenceScore(confidenceScore)
+                    .isValid(isValid)
                     .pendingAnalysis(isValid ? "AI 분석 완료" : analysisSummary.toString())
                     .build();
                     

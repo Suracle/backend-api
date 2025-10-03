@@ -43,6 +43,16 @@ ai:
     url: http://localhost:8000
   precedents-analysis:
     url: http://localhost:8000
+  requirements-analysis:
+    url: http://localhost:8000
+  testing-procedures-analysis:
+    url: http://localhost:8000
+  detailed-regulations-analysis:
+    url: http://localhost:8000
+  penalties-analysis:
+    url: http://localhost:8000
+  validity-analysis:
+    url: http://localhost:8000
   engine:
     base-url: http://localhost:8000
     timeout: 30000
