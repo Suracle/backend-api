@@ -54,7 +54,9 @@ public class Product extends BaseEntity {
   @Column(name = "is_active", nullable = false)
   private Boolean isActive;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "hs_code", referencedColumnName = "hs_code", insertable = false, updatable = false)
-  private HsCode hsCodeEntity;
+  // HS 코드 엔티티 매핑 제거 - 외래키 제약조건 없이 단순 문자열로 저장
+  // 필요시 별도 서비스에서 조회하도록 변경
+  // @ManyToOne(fetch = FetchType.LAZY)
+  // @JoinColumn(name = "hs_code", referencedColumnName = "hs_code", insertable = false, updatable = false)
+  // private HsCode hsCodeEntity;
 }
