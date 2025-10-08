@@ -38,6 +38,15 @@ public class ProductRequestDto {
     @Size(max = 20, message = "HS코드는 20자를 초과할 수 없습니다")
     private String hsCode;
 
+    // AI 분석 결과 필드들 (선택사항)
+    private String hsCodeDescription;  // combined_description from AI
+    
+    @Digits(integer = 5, fraction = 4, message = "관세율 형식이 올바르지 않습니다")
+    private BigDecimal usTariffRate;   // us_tariff_rate from AI
+    
+    private String reasoning;          // HS 코드 추천 근거 from AI
+    private String tariffReasoning;    // 관세율 적용 근거 from AI
+
     private ProductStatus status;
 
     @Builder.Default
