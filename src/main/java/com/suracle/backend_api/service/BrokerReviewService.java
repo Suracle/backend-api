@@ -68,17 +68,16 @@ public interface BrokerReviewService {
     List<BrokerReviewListResponseDto> getPendingReviewsByBrokerId(Integer brokerId);
 
     /**
-     * 상품별 최신 리뷰 조회
-     * @param productId 상품 ID
-     * @param pageable 페이징 정보
-     * @return 최신 리뷰 목록
-     */
-    Page<BrokerReviewListResponseDto> getLatestReviewsByProductId(Integer productId, Pageable pageable);
-
-    /**
      * 리뷰 삭제
      * @param reviewId 리뷰 ID
      * @param brokerId 관세사 ID (권한 확인용)
      */
     void deleteReview(Integer reviewId, Integer brokerId);
+    
+    /**
+     * 상품의 최신 리뷰 조회 (단일)
+     * @param productId 상품 ID
+     * @return 최신 리뷰 정보 (없으면 null)
+     */
+    BrokerReviewResponseDto getLatestReviewByProductId(Integer productId);
 }

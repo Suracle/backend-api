@@ -17,7 +17,6 @@ public class HsCodeResponseDto {
     private String hsCode;
     private String description;
     private BigDecimal usTariffRate;
-    private String requirements;
-    private String tradeAgreements;
+    private String reasoning;
     private LocalDateTime lastUpdated;
 }
