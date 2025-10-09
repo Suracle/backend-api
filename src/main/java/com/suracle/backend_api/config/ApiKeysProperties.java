@@ -23,6 +23,7 @@ public class ApiKeysProperties {
     private String doeKey;
     private String doiKey;
     private String dolKey;
+    private String censusKey;
     
     // Getter methods
     public String getUsdaKey() { return usdaKey; }
@@ -38,6 +39,7 @@ public class ApiKeysProperties {
     public String getDoeKey() { return doeKey; }
     public String getDoiKey() { return doiKey; }
     public String getDolKey() { return dolKey; }
+    public String getCensusKey() { return censusKey; }
 }
 
 

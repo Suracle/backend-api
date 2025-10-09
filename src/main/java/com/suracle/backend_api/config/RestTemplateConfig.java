@@ -23,6 +23,13 @@ public class RestTemplateConfig {
         // JSON 메시지 컨버터 추가
         restTemplate.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
         
+        // 공통 헤더 인터셉터 추가 (EPA CompTox, CPSC 등 헤더 요구 API 대응)
+        restTemplate.getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().add("Accept", "application/json");
+            request.getHeaders().add("User-Agent", "LawGenie-Backend/1.0");
+            return execution.execute(request, body);
+        });
+        
         return restTemplate;
     }
 }

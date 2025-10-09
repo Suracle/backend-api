@@ -282,38 +282,58 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void saveRequirementsAnalysisResult(Product product, Map<String, Object> analysisResult) {
         try {
             log.info("요구사항 분석 결과 저장 시작 - 상품 ID: {}", product.getProductId());
             
             JsonNode analysisResultJson = objectMapper.valueToTree(analysisResult);
             
-            // 기존 캐시 확인
+            // 기존 캐시 확인 (동시성 문제 해결을 위해 트랜잭션 내에서 다시 조회)
             Optional<ProductAnalysisCache> existingCache = productAnalysisCacheRepository
                 .findByProductIdAndAnalysisType(product.getId(), "requirements");
             
-            ProductAnalysisCache cache;
             if (existingCache.isPresent()) {
-                cache = existingCache.get();
+                // 기존 캐시 업데이트
+                ProductAnalysisCache cache = existingCache.get();
                 cache.setAnalysisResult(analysisResultJson);
+                cache.setConfidenceScore(java.math.BigDecimal.valueOf(extractConfidenceScore(analysisResult)));
+                cache.setIsValid(extractIsValid(analysisResult));
                 cache.setSources(objectMapper.valueToTree(extractSources(analysisResult)));
                 cache.setUpdatedAt(LocalDateTime.now());
-            } else {
-                // sources 값을 analysis_result에서 추출하거나 기본값 설정
-                List<String> sources = extractSources(analysisResult);
                 
-                cache = ProductAnalysisCache.builder()
-                    .product(product)
-                    .analysisType("requirements")
-                    .analysisResult(analysisResultJson)
-                    .confidenceScore(java.math.BigDecimal.valueOf(extractConfidenceScore(analysisResult)))
-                    .isValid(extractIsValid(analysisResult))
-                    .sources(objectMapper.valueToTree(sources))
-                    .build();
+                productAnalysisCacheRepository.save(cache);
+                log.info("요구사항 분석 결과 업데이트 완료 - 상품 ID: {}", product.getProductId());
+                
+            } else {
+                // 새 캐시 생성 (중복 가능성 체크)
+                try {
+                    List<String> sources = extractSources(analysisResult);
+                    
+                    ProductAnalysisCache cache = ProductAnalysisCache.builder()
+                        .product(product)
+                        .analysisType("requirements")
+                        .analysisResult(analysisResultJson)
+                        .confidenceScore(java.math.BigDecimal.valueOf(extractConfidenceScore(analysisResult)))
+                        .isValid(extractIsValid(analysisResult))
+                        .sources(objectMapper.valueToTree(sources))
+                        .build();
+                    
+                    productAnalysisCacheRepository.save(cache);
+                    log.info("요구사항 분석 결과 저장 완료 - 상품 ID: {}", product.getProductId());
+                    
+                } catch (Exception duplicateError) {
+                    if (duplicateError.getMessage() != null && 
+                        duplicateError.getMessage().contains("중복된 키")) {
+                        log.warn("중복된 분석 결과 감지, 기존 캐시 업데이트로 전환 - 상품 ID: {}", product.getProductId());
+                        // 중복 발생 시 기존 캐시 업데이트로 처리
+                        saveRequirementsAnalysisResult(product, analysisResult);
+                        return;
+                    } else {
+                        throw duplicateError;
+                    }
+                }
             }
-            
-            productAnalysisCacheRepository.save(cache);
-            log.info("요구사항 분석 결과 저장 완료 - 상품 ID: {}", product.getProductId());
             
         } catch (Exception e) {
             log.error("요구사항 분석 결과 저장 실패 - 상품 ID: {}", product.getProductId(), e);

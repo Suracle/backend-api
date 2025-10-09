@@ -82,7 +82,7 @@ public class AgencySearchStrategyController {
         fccStrategy.put("enabled", true);
         fccStrategy.put("priority", 5);
         fccStrategy.put("base_urls", Arrays.asList(
-            "https://www.fcc.gov/wireless/buisiness",
+            "https://www.fcc.gov/wireless/business",
             "https://www.fcc.gov/device-authorization-rules"
         ));
         fccStrategy.put("search_queries", Arrays.asList(

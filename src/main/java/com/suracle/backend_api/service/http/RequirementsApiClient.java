@@ -37,14 +37,20 @@ public class RequirementsApiClient {
     @Value("${requirements.api.epaKey:}")
     private String epaKey;
     
+    @Value("${requirements.api.censusKey:}")
+    private String censusKey;
+    
     /**
-     * FDA Cosmetic Event API 호출
+     * FDA Cosmetics Event API 호출 (복수형 경로)
+     * 쿼리 필드 강화: brand_name + product_description 병행 검색
      */
     public Optional<JsonNode> callOpenFdaCosmeticEvent(String productName) {
         try {
             String url = "https://api.fda.gov/cosmetics/event.json";
+            // 브랜드명 또는 제품 설명에서 검색
+            String searchQuery = "products.brand_name:\"" + productName + "\" OR products.product_description:\"" + productName + "\"";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
-                    .queryParam("search", "product_name:" + productName)
+                    .queryParam("search", searchQuery)
                     .queryParam("limit", 10);
             
             ResponseEntity<JsonNode> response = restTemplate.getForEntity(
@@ -55,7 +61,7 @@ public class RequirementsApiClient {
             }
             
         } catch (Exception e) {
-            log.error("FDA Cosmetic Event API 호출 실패: {}", e.getMessage());
+            log.error("FDA Cosmetics Event API 호출 실패: {}", e.getMessage());
         }
         
         return Optional.empty();
@@ -162,25 +168,12 @@ public class RequirementsApiClient {
 
     /**
      * FDA Food Event API 호출
+     * ⚠️ 주의: openFDA에는 /food/event.json 엔드포인트가 존재하지 않음
+     * 푸드 관련은 food/enforcement.json만 사용
      */
+    @Deprecated
     public Optional<JsonNode> callOpenFdaFoodEvent(String productName) {
-        try {
-            String url = "https://api.fda.gov/food/event.json";
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
-                    .queryParam("search", "products.name_brand:\"" + productName + "\"")
-                    .queryParam("limit", 10);
-
-            ResponseEntity<JsonNode> response = restTemplate.getForEntity(
-                    builder.toUriString(), JsonNode.class);
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return Optional.of(response.getBody());
-            }
-
-        } catch (Exception e) {
-            log.error("FDA Food Event API 호출 실패: {}", e.getMessage());
-        }
-
+        log.warn("FDA Food Event API는 존재하지 않는 엔드포인트입니다. food/enforcement를 사용하세요.");
         return Optional.empty();
     }
 
@@ -225,14 +218,15 @@ public class RequirementsApiClient {
     }
     
     /**
-     * FCC Device Authorization API 호출
+     * FCC Device Authorization API 호출 (OpenData Socrata)
      */
     public Optional<JsonNode> callFccDeviceAuthorizationGrants(String deviceName) {
         try {
-            String url = "https://publicfiles.fcc.gov/api/search";
+            String url = "https://opendata.fcc.gov/resource/3b3k-34jp.json";
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
-                    .queryParam("query", deviceName)
-                    .queryParam("limit", 10);
+                    .queryParam("$select", "grantee_code,grantee_name,state")
+                    .queryParam("$where", "upper(grantee_name) like '%" + deviceName.toUpperCase() + "%'")
+                    .queryParam("$limit", 10);
             
             ResponseEntity<JsonNode> response = restTemplate.getForEntity(
                     builder.toUriString(), JsonNode.class);
@@ -401,13 +395,51 @@ public class RequirementsApiClient {
     }
     
     /**
+     * Census International Trade HS API 호출
+     * 대한민국 CTY_CODE=5800 사용
+     */
+    public Optional<JsonNode> callCensusInternationalTradeHs(String hsCode, String tradeType, String year, String month) {
+        try {
+            // tradeType: "imports" 또는 "exports"
+            String url = "https://api.census.gov/data/timeseries/intltrade/" + tradeType + "/hs";
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("get", "CTY_CODE,HS,COMM_LVL,GEN_VAL_MO")
+                    .queryParam("time", year + "-" + month)
+                    .queryParam("CTY_CODE", "5800")  // 대한민국
+                    .queryParam("COMM_LVL", "HS6");
+            
+            // HS 코드 지정 (선택적)
+            if (hsCode != null && !hsCode.isEmpty()) {
+                builder.queryParam("HS", hsCode);
+            }
+            
+            // Census API 키 추가
+            if (censusKey != null && !censusKey.isEmpty()) {
+                builder.queryParam("key", censusKey);
+            }
+            
+            ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                    builder.toUriString(), JsonNode.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return Optional.of(response.getBody());
+            }
+            
+        } catch (Exception e) {
+            log.error("Census International Trade HS API 호출 실패: {}", e.getMessage());
+        }
+        
+        return Optional.empty();
+    }
+    
+    /**
      * API 엔드포인트 정보 조회
      * AI 엔진에서 사용하는 API 엔드포인트 정보 반환
      */
     public java.util.Map<String, Object> getApiEndpointsInfo() {
         java.util.Map<String, Object> endpointsInfo = new java.util.HashMap<>();
         java.util.List<String> agencies = java.util.Arrays.asList(
-            "FDA", "EPA", "USDA", "CPSC", "FCC", "CBP"
+            "FDA", "EPA", "USDA", "CPSC", "FCC", "CBP", "Commerce"
         );
         
         endpointsInfo.put("agencies", agencies);
