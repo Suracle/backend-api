@@ -35,8 +35,7 @@ public class HsCodeServiceImpl implements HsCodeService {
                 .hsCode(hsCode.getHsCode())
                 .description(hsCode.getDescription())
                 .usTariffRate(hsCode.getUsTariffRate())
-                .requirements(hsCode.getRequirements())
-                .tradeAgreements(hsCode.getTradeAgreements())
+                .reasoning(hsCode.getReasoning())
                 .lastUpdated(hsCode.getLastUpdated())
                 .build();
     }

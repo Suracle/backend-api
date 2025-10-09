@@ -60,9 +60,9 @@ public class ProductController {
      */
     @GetMapping
     public ResponseEntity<Page<ProductListResponseDto>> getProducts(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size,
+            @RequestParam(value = "sort", defaultValue = "createdAt,desc") String sort) {
         try {
             log.info("상품 목록 조회 요청 - 페이지: {}, 크기: {}, 정렬: {}", page, size, sort);
             
@@ -85,7 +85,7 @@ public class ProductController {
      * @return 상품 상세 정보
      */
     @GetMapping("/{productId}")
-    public ResponseEntity<ProductResponseDto> getProductById(@PathVariable String productId) {
+    public ResponseEntity<ProductResponseDto> getProductById(@PathVariable("productId") String productId) {
         try {
             log.info("상품 상세 조회 요청 - 상품 ID: {}", productId);
             ProductResponseDto product = productService.getProductById(productId);
@@ -107,7 +107,7 @@ public class ProductController {
      */
     @DeleteMapping("/{productId}")
     public ResponseEntity<Void> deleteProduct(
-            @PathVariable String productId,
+            @PathVariable("productId") String productId,
             @RequestHeader("X-Seller-Id") Integer sellerId) {
         try {
             log.info("상품 삭제 요청 - 상품 ID: {}, 판매자 ID: {}", productId, sellerId);
@@ -132,9 +132,9 @@ public class ProductController {
      */
     @GetMapping("/search")
     public ResponseEntity<Page<ProductListResponseDto>> searchProductsByName(
-            @RequestParam String productName,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam("productName") String productName,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
         try {
             log.info("상품명 검색 요청 - 검색어: {}, 페이지: {}", productName, page);
             Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -158,11 +158,11 @@ public class ProductController {
      */
     @GetMapping("/seller/{sellerId}/search-filter")
     public ResponseEntity<Page<ProductListResponseDto>> searchProductsBySellerIdAndNameAndStatus(
-            @PathVariable Integer sellerId,
-            @RequestParam(required = false) String productName,
-            @RequestParam(defaultValue = "all") String status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @PathVariable("sellerId") Integer sellerId,
+            @RequestParam(value = "productName", required = false) String productName,
+            @RequestParam(value = "status", defaultValue = "all") String status,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
         try {
             log.info("판매자별 상품 검색 요청 (상품명 + 상태 필터) - 판매자 ID: {}, 검색어: {}, 상태: {}, 페이지: {}", sellerId, productName, status, page);
             Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -183,7 +183,7 @@ public class ProductController {
      * @return 판례 분석 결과
      */
     @GetMapping("/{productId}/precedents")
-    public ResponseEntity<PrecedentsResponseDto> getProductPrecedents(@PathVariable String productId) {
+    public ResponseEntity<PrecedentsResponseDto> getProductPrecedents(@PathVariable("productId") String productId) {
         try {
             log.info("상품 판례 분석 조회 요청 - 상품 ID: {}", productId);
             PrecedentsResponseDto precedents = productService.getProductPrecedents(productId);
@@ -203,7 +203,7 @@ public class ProductController {
      * @return ID 매핑 정보
      */
     @GetMapping("/id-mapping/{id}")
-    public ResponseEntity<Map<String, String>> getProductIdMapping(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, String>> getProductIdMapping(@PathVariable("id") Integer id) {
         try {
             log.info("상품 ID 매핑 조회 요청 - ID: {}", id);
             Optional<ProductResponseDto> product = productService.getProductById(id);

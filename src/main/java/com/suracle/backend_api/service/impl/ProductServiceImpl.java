@@ -7,9 +7,11 @@ import com.suracle.backend_api.dto.product.ProductListResponseDto;
 import com.suracle.backend_api.dto.product.ProductRequestDto;
 import com.suracle.backend_api.dto.product.ProductResponseDto;
 import com.suracle.backend_api.entity.cache.ProductAnalysisCache;
+import com.suracle.backend_api.entity.hs.HsCode;
 import com.suracle.backend_api.entity.product.Product;
 import com.suracle.backend_api.entity.product.enums.ProductStatus;
 import com.suracle.backend_api.entity.user.User;
+import com.suracle.backend_api.repository.HsCodeRepository;
 import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
 import com.suracle.backend_api.repository.ProductRepository;
 import com.suracle.backend_api.repository.UserRepository;
@@ -22,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final HsCodeRepository hsCodeRepository;
     private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
     private final AiWorkflowService aiWorkflowService;
     private final ObjectMapper objectMapper;
@@ -62,6 +66,11 @@ public class ProductServiceImpl implements ProductService {
 
         // 상품 저장
         Product savedProduct = productRepository.save(product);
+        
+        // HS 코드 정보 저장 (AI 분석 결과가 있는 경우)
+        if (requestDto.getHsCode() != null && !requestDto.getHsCode().trim().isEmpty()) {
+            saveOrUpdateHsCode(requestDto);
+        }
         
         log.info("상품 등록 완료 - 상품 ID: {}, 상품명: {}", savedProduct.getProductId(), savedProduct.getProductName());
 
@@ -100,10 +109,68 @@ public class ProductServiceImpl implements ProductService {
         return convertToProductResponseDto(savedProduct);
     }
 
+    /**
+     * HS 코드 정보 저장 또는 업데이트 (AI 분석 결과 반영)
+     */
+    private void saveOrUpdateHsCode(ProductRequestDto requestDto) {
+        try {
+            String hsCode = requestDto.getHsCode();
+            
+            // 기존 HS 코드 조회
+            Optional<HsCode> existingHsCode = hsCodeRepository.findById(hsCode);
+            
+            if (existingHsCode.isPresent()) {
+                // 기존 HS 코드가 있으면 AI 분석 결과로 업데이트
+                HsCode hsCodeEntity = existingHsCode.get();
+                
+                if (requestDto.getHsCodeDescription() != null) {
+                    hsCodeEntity.setDescription(requestDto.getHsCodeDescription());
+                }
+                if (requestDto.getUsTariffRate() != null) {
+                    hsCodeEntity.setUsTariffRate(requestDto.getUsTariffRate());
+                }
+                if (requestDto.getReasoning() != null) {
+                    hsCodeEntity.setReasoning(requestDto.getReasoning());
+                }
+                if (requestDto.getTariffReasoning() != null) {
+                    hsCodeEntity.setTariffReasoning(requestDto.getTariffReasoning());
+                }
+                hsCodeEntity.setLastUpdated(LocalDateTime.now());
+                
+                hsCodeRepository.save(hsCodeEntity);
+                log.info("✅ HS 코드 업데이트 완료: {}", hsCode);
+                
+            } else {
+                // 새로운 HS 코드 생성
+                HsCode newHsCode = HsCode.builder()
+                        .hsCode(hsCode)
+                        .description(requestDto.getHsCodeDescription() != null ? 
+                                   requestDto.getHsCodeDescription() : "AI 분석 결과")
+                        .usTariffRate(requestDto.getUsTariffRate() != null ? 
+                                    requestDto.getUsTariffRate() : BigDecimal.ZERO)
+                        .reasoning(requestDto.getReasoning() != null ? 
+                                 requestDto.getReasoning() : "AI 분석 근거")
+                        .tariffReasoning(requestDto.getTariffReasoning() != null ? 
+                                       requestDto.getTariffReasoning() : "관세율 적용 근거")
+                        .lastUpdated(LocalDateTime.now())
+                        .build();
+                
+                hsCodeRepository.save(newHsCode);
+                log.info("✅ 새로운 HS 코드 생성 완료: {}", hsCode);
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ HS 코드 저장 실패: {}", e.getMessage(), e);
+            // HS 코드 저장 실패는 상품 등록을 막지 않음
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public Page<ProductListResponseDto> getProducts(Pageable pageable) {
-        Page<Product> products = productRepository.findAll(pageable);
+        log.info("상품 목록 조회 - 페이지: {}", pageable.getPageNumber());
+        // isActive = true인 활성 상품만 조회
+        Page<Product> products = productRepository.findByIsActiveTrue(pageable);
         return products.map(this::convertToProductListResponseDto);
     }
 
@@ -111,14 +178,14 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductResponseDto getProductById(String productId) {
         Product product = productRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("상품을 찾을 수 없습니다: " + productId));
+                .orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
         return convertToProductResponseDto(product);
     }
 
     @Transactional
     public ProductResponseDto updateProduct(String productId, ProductRequestDto requestDto, Integer sellerId) {
         Product product = productRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("상품을 찾을 수 없습니다: " + productId));
+                .orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
         // 권한 확인
         if (!product.getSeller().getId().equals(sellerId)) {
@@ -142,15 +209,22 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public void deleteProduct(String productId, Integer sellerId) {
+        log.info("상품 삭제 요청 - 상품 ID: {}, 판매자 ID: {}", productId, sellerId);
+        
         Product product = productRepository.findByProductId(productId)
-                .orElseThrow(() -> new RuntimeException("상품을 찾을 수 없습니다: " + productId));
+                .orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
         // 권한 확인
         if (!product.getSeller().getId().equals(sellerId)) {
             throw new RuntimeException("상품 삭제 권한이 없습니다.");
         }
 
-        productRepository.delete(product);
+        // 논리 삭제 (Soft Delete) - isActive를 false로 변경
+        // 외래키 제약조건 때문에 물리적 삭제 불가능 (product_inquiries, product_analysis_cache, broker_reviews, tariff_calculations 참조)
+        product.setIsActive(false);
+        productRepository.save(product);
+        
+        log.info("상품 삭제 완료 (논리 삭제) - 상품 ID: {}", productId);
     }
 
     @Override
@@ -163,20 +237,25 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public Page<ProductListResponseDto> searchProductsBySellerIdAndNameAndStatus(Integer sellerId, String productName, String status, Pageable pageable) {
-        Page<Product> products;
+        log.info("판매자별 상품 검색 - 판매자 ID: {}, 상품명: {}, 상태: {}", sellerId, productName, status);
         
-        if (productName != null && !productName.trim().isEmpty() && status != null && !status.trim().isEmpty()) {
-            products = productRepository.findBySellerIdAndProductNameContainingAndStatusAndIsActiveTrue(sellerId, productName, ProductStatus.valueOf(status), pageable);
-        } else if (productName != null && !productName.trim().isEmpty()) {
-            // 상품명만으로 검색하는 경우 - 기본 findAll 사용
-            products = productRepository.findAll(pageable);
-        } else if (status != null && !status.trim().isEmpty()) {
-            // 상태만으로 검색하는 경우 - 기본 findAll 사용
-            products = productRepository.findAll(pageable);
-        } else {
-            // 기본 검색 - 기본 findAll 사용
-            products = productRepository.findAll(pageable);
+        // 상태 필터 처리
+        ProductStatus productStatus = null;
+        if (status != null && !status.trim().isEmpty() && !"all".equalsIgnoreCase(status)) {
+            try {
+                productStatus = ProductStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("잘못된 상태 값: {}, 전체 상품 조회로 변경", status);
+            }
         }
+        
+        // isActive = true인 상품만 조회
+        Page<Product> products = productRepository.findBySellerIdAndProductNameContainingAndStatusAndIsActiveTrue(
+            sellerId, 
+            productName == null ? "" : productName, 
+            productStatus, 
+            pageable
+        );
         
         return products.map(this::convertToProductListResponseDto);
     }
@@ -189,7 +268,7 @@ public class ProductServiceImpl implements ProductService {
         try {
             // 상품 정보 조회
             Product product = productRepository.findByProductId(productId)
-                    .orElseThrow(() -> new RuntimeException("상품을 찾을 수 없습니다: " + productId));
+                    .orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
             
             log.info("상품 정보 조회 완료 - 상품 ID: {}, HS코드: {}", product.getProductId(), product.getHsCode());
             
@@ -243,11 +322,57 @@ public class ProductServiceImpl implements ProductService {
                 .map(this::convertToProductResponseDto);
     }
 
+    /**
+     * 상품 ID 생성 (PROD-YYYY-### 형태, 순차적 증가)
+     * 예: PROD-2025-001, PROD-2025-002, ...
+     */
     private String generateProductId() {
-        return "PROD-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        // 현재 연도 가져오기
+        int currentYear = java.time.LocalDate.now().getYear();
+        
+        // 해당 연도의 가장 최근 상품 ID 조회
+        Optional<String> latestProductId = productRepository.findLatestProductIdByYear(currentYear);
+        
+        int nextNumber = 1; // 기본값: 해당 연도의 첫 상품
+        
+        if (latestProductId.isPresent()) {
+            // 예: "PROD-2025-010" -> "010" 추출 -> 10 + 1 = 11
+            String lastId = latestProductId.get();
+            String numberPart = lastId.substring(lastId.lastIndexOf('-') + 1);
+            try {
+                int lastNumber = Integer.parseInt(numberPart);
+                nextNumber = lastNumber + 1;
+            } catch (NumberFormatException e) {
+                log.warn("상품 ID 파싱 실패: {}, 기본값 1 사용", lastId);
+                nextNumber = 1;
+            }
+        }
+        
+        // PROD-YYYY-### 형태로 생성
+        String productId = String.format("PROD-%d-%03d", currentYear, nextNumber);
+        
+        log.debug("생성된 상품 ID: {} (이전 ID: {})", productId, latestProductId.orElse("없음"));
+        return productId;
     }
 
     private ProductResponseDto convertToProductResponseDto(Product product) {
+        // HS 코드 정보 조회
+        String hsCodeDescription = null;
+        BigDecimal usTariffRate = null;
+        String reasoning = null;
+        String tariffReasoning = null;
+        
+        if (product.getHsCode() != null && !product.getHsCode().trim().isEmpty()) {
+            Optional<HsCode> hsCodeEntity = hsCodeRepository.findById(product.getHsCode());
+            if (hsCodeEntity.isPresent()) {
+                HsCode hsCode = hsCodeEntity.get();
+                hsCodeDescription = hsCode.getDescription();
+                usTariffRate = hsCode.getUsTariffRate();
+                reasoning = hsCode.getReasoning();
+                tariffReasoning = hsCode.getTariffReasoning();
+            }
+        }
+        
         return ProductResponseDto.builder()
                 .id(product.getId())
                 .productId(product.getProductId())
@@ -257,15 +382,29 @@ public class ProductServiceImpl implements ProductService {
                 .fobPrice(product.getFobPrice())
                 .originCountry(product.getOriginCountry())
                 .hsCode(product.getHsCode())
+                .hsCodeDescription(hsCodeDescription)  // HS 코드 설명
+                .usTariffRate(usTariffRate)           // 관세율
+                .reasoning(reasoning)                  // HS 코드 추천 근거
+                .tariffReasoning(tariffReasoning)      // 관세율 적용 근거
                 .status(product.getStatus())
                 .isActive(product.getIsActive())
                 .sellerId(product.getSeller().getId())
+                .sellerName(product.getSeller().getUserName())  // ✅ 판매자명 추가
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();
     }
 
     private ProductListResponseDto convertToProductListResponseDto(Product product) {
+        // HS 코드에서 관세율 조회
+        BigDecimal usTariffRate = null;
+        if (product.getHsCode() != null) {
+            Optional<HsCode> hsCode = hsCodeRepository.findById(product.getHsCode());
+            if (hsCode.isPresent()) {
+                usTariffRate = hsCode.get().getUsTariffRate();
+            }
+        }
+        
         return ProductListResponseDto.builder()
                 .id(product.getId())
                 .productId(product.getProductId())
@@ -274,9 +413,11 @@ public class ProductServiceImpl implements ProductService {
                 .fobPrice(product.getFobPrice())
                 .originCountry(product.getOriginCountry())
                 .hsCode(product.getHsCode())
+                .usTariffRate(usTariffRate)  // HS 코드 기반 관세율
                 .status(product.getStatus())
                 .isActive(product.getIsActive())
                 .sellerId(product.getSeller().getId())
+                .sellerName(product.getSeller().getUserName())  // ✅ 판매자명 추가
                 .createdAt(product.getCreatedAt())
                 .build();
     }

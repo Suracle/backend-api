@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/hs-code-analysis")
 @RequiredArgsConstructor
 @Slf4j
 public class HsCodeAnalysisController {
@@ -19,18 +18,80 @@ public class HsCodeAnalysisController {
     private final HsCodeAnalysisService hsCodeAnalysisService;
 
     /**
-     * 상품명과 설명을 기반으로 HS코드 분석 수행
+     * 상품명과 설명을 기반으로 HS코드 분석 수행 (AI 엔진 연동) - 기존 엔드포인트
      * @param request 분석 요청 정보
      * @return HS코드 추천 목록
      */
-    @PostMapping("/analyze")
+    @PostMapping("/api/hs-code-analysis/analyze")
     public ResponseEntity<HsCodeAnalysisResponseDto> analyzeHsCode(@RequestBody HsCodeAnalysisRequestDto request) {
         try {
-            log.info("HS코드 분석 요청 - 상품명: {}", request.getProductName());
+            log.info("📥 HS코드 분석 요청 - 상품명: {}, 설명: {}", 
+                    request.getProductName(), 
+                    request.getProductDescription() != null ? 
+                        request.getProductDescription().substring(0, Math.min(50, request.getProductDescription().length())) + "..." : 
+                        "null");
+            
+            // 입력 검증
+            if (request.getProductName() == null || request.getProductName().trim().isEmpty()) {
+                log.warn("⚠️ 제품명이 비어있습니다.");
+                return ResponseEntity.badRequest().build();
+            }
+            
+            if (request.getProductDescription() == null || request.getProductDescription().trim().isEmpty()) {
+                log.warn("⚠️ 제품 설명이 비어있습니다.");
+                return ResponseEntity.badRequest().build();
+            }
+            
             HsCodeAnalysisResponseDto response = hsCodeAnalysisService.analyzeHsCode(request);
+            
+            log.info("✅ HS코드 분석 완료 - 세션ID: {}, 추천 개수: {}", 
+                    response.getAnalysisSessionId(),
+                    response.getSuggestions() != null ? response.getSuggestions().size() : 0);
+            
             return ResponseEntity.ok(response);
+            
         } catch (Exception e) {
-            log.error("HS코드 분석 중 오류 발생", e);
+            log.error("❌ HS코드 분석 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * 상품명과 설명을 기반으로 HS코드 분석 수행 (프론트엔드용 엔드포인트)
+     * @param request 분석 요청 정보
+     * @return HS코드 추천 목록
+     */
+    @PostMapping("/api/hs-code-analysis/analyze-graph")
+    public ResponseEntity<HsCodeAnalysisResponseDto> analyzeHsCodeGraph(@RequestBody HsCodeAnalysisRequestDto request) {
+        try {
+            log.info("📥 HS코드 그래프 분석 요청 - 상품명: {}, 설명: {}", 
+                    request.getProductName(), 
+                    request.getProductDescription() != null ? 
+                        request.getProductDescription().substring(0, Math.min(50, request.getProductDescription().length())) + "..." : 
+                        "null");
+            
+            // 입력 검증
+            if (request.getProductName() == null || request.getProductName().trim().isEmpty()) {
+                log.warn("⚠️ 제품명이 비어있습니다.");
+                return ResponseEntity.badRequest().build();
+            }
+            
+            if (request.getProductDescription() == null || request.getProductDescription().trim().isEmpty()) {
+                log.warn("⚠️ 제품 설명이 비어있습니다.");
+                return ResponseEntity.badRequest().build();
+            }
+            
+            // AI 엔진을 통한 분석 수행 (DB 저장 + 응답 변환 포함)
+            HsCodeAnalysisResponseDto response = hsCodeAnalysisService.analyzeHsCode(request);
+            
+            log.info("✅ HS코드 그래프 분석 완료 - 세션ID: {}, 추천 개수: {}", 
+                    response.getAnalysisSessionId(),
+                    response.getSuggestions() != null ? response.getSuggestions().size() : 0);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ HS코드 그래프 분석 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

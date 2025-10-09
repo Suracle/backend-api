@@ -59,10 +59,10 @@ public class BrokerReviewController {
      */
     @PutMapping("/{reviewId}")
     public ResponseEntity<BrokerReviewResponseDto> updateReviewStatus(
-            @PathVariable Integer reviewId,
-            @RequestParam ReviewStatus reviewStatus,
-            @RequestParam(required = false) String reviewComment,
-            @RequestParam(required = false) String suggestedHsCode) {
+            @PathVariable("reviewId") Integer reviewId,
+            @RequestParam(value = "reviewStatus") ReviewStatus reviewStatus,
+            @RequestParam(value = "reviewComment", required = false) String reviewComment,
+            @RequestParam(value = "suggestedHsCode", required = false) String suggestedHsCode) {
         try {
             log.info("리뷰 상태 업데이트 API 호출 - 리뷰 ID: {}, 상태: {}", reviewId, reviewStatus);
             
@@ -84,7 +84,7 @@ public class BrokerReviewController {
      * @return 리뷰 상세 정보
      */
     @GetMapping("/{reviewId}")
-    public ResponseEntity<BrokerReviewResponseDto> getReviewById(@PathVariable Integer reviewId) {
+    public ResponseEntity<BrokerReviewResponseDto> getReviewById(@PathVariable("reviewId") Integer reviewId) {
         try {
             log.info("리뷰 상세 조회 API 호출 - 리뷰 ID: {}", reviewId);
             
@@ -108,9 +108,9 @@ public class BrokerReviewController {
      */
     @GetMapping("/broker/{brokerId}")
     public ResponseEntity<Page<BrokerReviewListResponseDto>> getReviewsByBrokerId(
-            @PathVariable Integer brokerId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @PathVariable("brokerId") Integer brokerId,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
         try {
             log.info("관세사별 리뷰 목록 조회 API 호출 - 관세사 ID: {}, 페이지: {}", brokerId, page);
             
@@ -132,9 +132,9 @@ public class BrokerReviewController {
      */
     @GetMapping("/product/{productId}")
     public ResponseEntity<Page<BrokerReviewListResponseDto>> getReviewsByProductId(
-            @PathVariable Integer productId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @PathVariable("productId") Integer productId,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
         try {
             log.info("상품별 리뷰 목록 조회 API 호출 - 상품 ID: {}, 페이지: {}", productId, page);
             
@@ -156,9 +156,9 @@ public class BrokerReviewController {
      */
     @GetMapping("/status/{status}")
     public ResponseEntity<Page<BrokerReviewListResponseDto>> getReviewsByStatus(
-            @PathVariable ReviewStatus status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @PathVariable("status") ReviewStatus status,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
         try {
             log.info("리뷰 상태별 목록 조회 API 호출 - 상태: {}, 페이지: {}", status, page);
             
@@ -178,7 +178,7 @@ public class BrokerReviewController {
      */
     @GetMapping("/broker/{brokerId}/pending")
     public ResponseEntity<List<BrokerReviewListResponseDto>> getPendingReviewsByBrokerId(
-            @PathVariable Integer brokerId) {
+            @PathVariable("brokerId") Integer brokerId) {
         try {
             log.info("관세사별 대기 중인 리뷰 목록 조회 API 호출 - 관세사 ID: {}", brokerId);
             
@@ -191,30 +191,6 @@ public class BrokerReviewController {
     }
 
     /**
-     * 상품별 최신 리뷰 조회
-     * @param productId 상품 ID
-     * @param page 페이지 번호 (기본값: 0)
-     * @param size 페이지 크기 (기본값: 10)
-     * @return 최신 리뷰 목록
-     */
-    @GetMapping("/product/{productId}/latest")
-    public ResponseEntity<Page<BrokerReviewListResponseDto>> getLatestReviewsByProductId(
-            @PathVariable Integer productId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        try {
-            log.info("상품별 최신 리뷰 조회 API 호출 - 상품 ID: {}, 페이지: {}", productId, page);
-            
-            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-            Page<BrokerReviewListResponseDto> response = brokerReviewService.getLatestReviewsByProductId(productId, pageable);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("상품별 최신 리뷰 조회 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
      * 리뷰 삭제
      * @param reviewId 리뷰 ID
      * @param brokerId 관세사 ID (헤더로 전달)
@@ -222,7 +198,7 @@ public class BrokerReviewController {
      */
     @DeleteMapping("/{reviewId}")
     public ResponseEntity<Void> deleteReview(
-            @PathVariable Integer reviewId,
+            @PathVariable("reviewId") Integer reviewId,
             @RequestHeader("X-Broker-Id") Integer brokerId) {
         try {
             log.info("리뷰 삭제 API 호출 - 리뷰 ID: {}, 관세사 ID: {}", reviewId, brokerId);
@@ -234,6 +210,28 @@ public class BrokerReviewController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         } catch (Exception e) {
             log.error("리뷰 삭제 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * 상품의 최신 리뷰 조회 (단일)
+     * @param productId 상품 ID
+     * @return 최신 리뷰 정보
+     */
+    @GetMapping("/product/{productId}/latest")
+    public ResponseEntity<BrokerReviewResponseDto> getLatestReviewByProductId(
+            @PathVariable("productId") Integer productId) {
+        try {
+            log.info("상품 최신 리뷰 조회 API 호출 - 상품 ID: {}", productId);
+            
+            BrokerReviewResponseDto response = brokerReviewService.getLatestReviewByProductId(productId);
+            if (response == null) {
+                return ResponseEntity.noContent().build();
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("상품 최신 리뷰 조회 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

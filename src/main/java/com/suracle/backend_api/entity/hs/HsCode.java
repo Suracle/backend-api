@@ -26,11 +26,11 @@ public class HsCode extends BaseEntity {
   @Column(name = "us_tariff_rate", precision = 5, scale = 4)
   private BigDecimal usTariffRate;
 
-  @Column(name = "requirements", columnDefinition = "text")
-  private String requirements;
+  @Column(name = "reasoning", columnDefinition = "text")
+  private String reasoning;  // HS 코드 추천 근거
 
-  @Column(name = "trade_agreements", columnDefinition = "json")
-  private String tradeAgreements;
+  @Column(name = "tariff_reasoning", columnDefinition = "text")
+  private String tariffReasoning;  // 관세율 적용 근거
 
   @Column(name = "last_updated")
   private LocalDateTime lastUpdated;

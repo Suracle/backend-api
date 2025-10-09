@@ -14,7 +14,9 @@ import com.suracle.backend_api.service.BrokerReviewService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,7 +62,12 @@ public class BrokerReviewServiceImpl implements BrokerReviewService {
                 .build();
 
         BrokerReview savedReview = brokerReviewRepository.save(review);
-        log.info("리뷰 요청 생성 완료 - 리뷰 ID: {}", savedReview.getId());
+        
+        // 상품 상태를 PENDING_REVIEW로 업데이트
+        product.setStatus(com.suracle.backend_api.entity.product.enums.ProductStatus.PENDING_REVIEW);
+        productRepository.save(product);
+        
+        log.info("리뷰 요청 생성 완료 - 리뷰 ID: {}, 상품 상태: PENDING_REVIEW로 변경", savedReview.getId());
 
         return convertToResponseDto(savedReview);
     }
@@ -79,6 +86,18 @@ public class BrokerReviewServiceImpl implements BrokerReviewService {
         review.setReviewedAt(LocalDateTime.now());
 
         BrokerReview savedReview = brokerReviewRepository.save(review);
+        
+        // 상품 상태도 함께 업데이트
+        Product product = review.getProduct();
+        if (reviewStatus == ReviewStatus.APPROVED) {
+            product.setStatus(com.suracle.backend_api.entity.product.enums.ProductStatus.APPROVED);
+            log.info("상품 상태 업데이트 - 상품 ID: {}, 상태: APPROVED", product.getId());
+        } else if (reviewStatus == ReviewStatus.REJECTED) {
+            product.setStatus(com.suracle.backend_api.entity.product.enums.ProductStatus.REJECTED);
+            log.info("상품 상태 업데이트 - 상품 ID: {}, 상태: REJECTED", product.getId());
+        }
+        productRepository.save(product);
+        
         log.info("리뷰 상태 업데이트 완료 - 리뷰 ID: {}", savedReview.getId());
 
         return convertToResponseDto(savedReview);
@@ -134,15 +153,6 @@ public class BrokerReviewServiceImpl implements BrokerReviewService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public Page<BrokerReviewListResponseDto> getLatestReviewsByProductId(Integer productId, Pageable pageable) {
-        log.info("상품별 최신 리뷰 조회 - 상품 ID: {}", productId);
-
-        Page<BrokerReview> reviews = brokerReviewRepository.findLatestReviewsByProductId(productId, pageable);
-        return reviews.map(this::convertToListResponseDto);
-    }
-
-    @Override
     public void deleteReview(Integer reviewId, Integer brokerId) {
         log.info("리뷰 삭제 - 리뷰 ID: {}, 관세사 ID: {}", reviewId, brokerId);
 
@@ -156,6 +166,21 @@ public class BrokerReviewServiceImpl implements BrokerReviewService {
 
         brokerReviewRepository.delete(review);
         log.info("리뷰 삭제 완료 - 리뷰 ID: {}", reviewId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BrokerReviewResponseDto getLatestReviewByProductId(Integer productId) {
+        log.info("상품 최신 리뷰 조회 - 상품 ID: {}", productId);
+        
+        Pageable pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<BrokerReview> reviews = brokerReviewRepository.findLatestReviewsByProductId(productId, pageable);
+        
+        if (reviews.hasContent()) {
+            return convertToResponseDto(reviews.getContent().get(0));
+        }
+        
+        return null;
     }
 
     /**

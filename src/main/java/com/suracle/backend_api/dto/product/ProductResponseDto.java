@@ -25,7 +25,10 @@ public class ProductResponseDto {
     private BigDecimal fobPrice;
     private String originCountry;
     private String hsCode;
-    private String hsCodeDescription;
+    private String hsCodeDescription;  // HS 코드 설명 (combined_description)
+    private BigDecimal usTariffRate;   // 관세율
+    private String reasoning;          // HS 코드 추천 근거 (AI 분석)
+    private String tariffReasoning;    // 관세율 적용 근거 (AI 분석)
     private ProductStatus status;
     private Boolean isActive;
     private LocalDateTime createdAt;

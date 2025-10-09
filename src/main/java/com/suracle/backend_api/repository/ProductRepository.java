@@ -81,4 +81,10 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
     @Query("SELECT p FROM Product p WHERE p.isActive = true AND p.hsCode IS NOT NULL AND p.hsCode != ''")
     List<Product> findByActiveAndHsCodeNotNull();
 
+    
+    /**
+     * 특정 연도의 가장 최근 상품 ID 조회 (PROD-YYYY-### 형식에서 가장 큰 번호)
+     */
+    @Query("SELECT p.productId FROM Product p WHERE p.productId LIKE CONCAT('PROD-', :year, '-%') ORDER BY p.productId DESC")
+    Optional<String> findLatestProductIdByYear(@Param("year") int year);
 }
