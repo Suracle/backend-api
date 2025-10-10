@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -68,6 +69,18 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
      */
     @Query("SELECT p FROM Product p WHERE LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%')) AND p.isActive = true")
     Optional<Product> findByProductNameContainingIgnoreCase(@Param("productName") String productName);
+
+    /**
+     * HS코드로 상품 조회 (AI 엔진용)
+     */
+    Optional<Product> findByHsCode(String hsCode);
+
+    /**
+     * 활성 상태이고 HS코드가 있는 상품들 조회 (서버 시작 시 분석용)
+     */
+    @Query("SELECT p FROM Product p WHERE p.isActive = true AND p.hsCode IS NOT NULL AND p.hsCode != ''")
+    List<Product> findByActiveAndHsCodeNotNull();
+
     
     /**
      * 특정 연도의 가장 최근 상품 ID 조회 (PROD-YYYY-### 형식에서 가장 큰 번호)

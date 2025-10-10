@@ -1,17 +1,33 @@
 package com.suracle.backend_api.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.suracle.backend_api.dto.requirement.RequirementAnalysisResponse;
+import com.suracle.backend_api.entity.cache.ProductAnalysisCache;
+import com.suracle.backend_api.entity.product.Product;
+import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
+import com.suracle.backend_api.repository.ProductRepository;
+import com.suracle.backend_api.service.AiWorkflowService;
 import com.suracle.backend_api.service.RequirementService;
 import com.suracle.backend_api.service.http.RequirementsApiClient;
 import com.suracle.backend_api.service.util.EnglishNameUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -20,186 +36,390 @@ public class RequirementServiceImpl implements RequirementService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RequirementsApiClient apiClient;
+    private final AiWorkflowService aiWorkflowService;
+    private final ProductRepository productRepository;
+    private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
+    
+    // JSON 파일 저장 경로
+    private static final String REQUIREMENTS_DIR = "requirements_results";
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyMMdd");
 
+    /**
+     * AI 엔진을 통한 요구사항 분석 실행
+     * @param productId 분석할 상품 ID
+     * @return 요구사항 분석 결과
+     */
     @Override
     public RequirementAnalysisResponse getRequirementAnalysis(Long productId) {
-        // Map productId to a json file name. For now, use a simple convention.
-        String fileName = String.format("requirements/product-%d.json", productId);
-        ClassPathResource resource = new ClassPathResource(fileName);
-        if (!resource.exists()) {
-            log.warn("Requirement JSON not found for productId={}, file={}", productId, fileName);
-            // Return an empty, invalid response instead of erroring
-            return RequirementAnalysisResponse.builder()
-                    .productId(String.valueOf(productId))
-                    .isValid(false)
-                    .confidenceScore(0.0)
-                    .pendingAnalysis("No requirement JSON available")
-                    .build();
-        }
-        try (InputStream is = resource.getInputStream()) {
-            RequirementAnalysisResponse resp = objectMapper.readValue(is, RequirementAnalysisResponse.class);
-            // ensure productId set
-            if (resp.getProductId() == null || resp.getProductId().isEmpty()) {
-                resp.setProductId(String.valueOf(productId));
+        try {
+            log.info("요구사항 분석 조회 시작 - productId: {}", productId);
+            
+            // 상품 정보 조회
+            Product product = productRepository.findById(productId.intValue())
+                    .orElseThrow(() -> new RuntimeException("상품을 찾을 수 없습니다: " + productId));
+            
+            if (product.getHsCode() == null || product.getHsCode().trim().isEmpty()) {
+                log.warn("HS코드가 없는 상품 - productId: {}, 상품명: {}", productId, product.getProductName());
+                return RequirementAnalysisResponse.builder()
+                        .productId(String.valueOf(productId))
+                        .productName(product.getProductName())
+                        .isValid(false)
+                        .confidenceScore(0.0)
+                        .pendingAnalysis("HS코드가 없어 분석할 수 없습니다")
+                        .build();
             }
-            // Optional enrichment: attempt minimal live calls without failing the request
+            
+            // 1. DB 캐시에서 먼저 조회
+            Optional<ProductAnalysisCache> cachedAnalysis = productAnalysisCacheRepository
+                    .findByProductIdAndAnalysisType(product.getId(), "requirements");
+            
+            Map<String, Object> aiResult;
+            
+            if (cachedAnalysis.isPresent()) {
+                log.info("✅ DB 캐시에서 요건 분석 결과 조회 - productId: {}", productId);
+                ProductAnalysisCache cache = cachedAnalysis.get();
+                aiResult = objectMapper.convertValue(cache.getAnalysisResult(), Map.class);
+            } else {
+                log.info("🤖 DB 캐시 없음, AI 엔진 호출 - productId: {}", productId);
+                // 2. 캐시 없으면 AI 엔진 호출
+                aiResult = aiWorkflowService.executeRequirementsAnalysis(product);
+            }
+            
+            if (aiResult == null || aiResult.isEmpty()) {
+                log.error("AI 엔진 분석 결과가 비어있음 - productId: {}", productId);
+                return RequirementAnalysisResponse.builder()
+                        .productId(String.valueOf(productId))
+                        .productName(product.getProductName())
+                        .isValid(false)
+                        .confidenceScore(0.0)
+                        .pendingAnalysis("AI 엔진 분석 결과가 비어있습니다")
+                        .build();
+            }
+            
+            // AI 엔진 응답을 RequirementAnalysisResponse로 변환
+            RequirementAnalysisResponse response;
             try {
-                String english = EnglishNameUtil.toEnglishQuery(resp.getProductName());
-                apiClient.callOpenFdaCosmeticEvent(english).ifPresent(json -> {
-                    // noop: presence indicates reachable; future mapping can enrich fields
-                });
-                if (english != null && !english.isBlank()) {
-                    apiClient.callEpaSrsChemname(english);
-                }
-                apiClient.checkCbpPortalReachable();
-            } catch (Exception ignored) {
+                response = convertAiResultToResponse(productId, product.getProductName(), aiResult);
+            } catch (Exception e) {
+                log.error("❌ AI 결과 변환 실패 (계속 진행) - productId: {}, 오류: {}", productId, e.getMessage());
+                // 변환 실패해도 기본 응답 생성
+                response = RequirementAnalysisResponse.builder()
+                        .productId(String.valueOf(productId))
+                        .productName(product.getProductName())
+                        .isValid(false)
+                        .confidenceScore(0.5)
+                        .pendingAnalysis("분석 결과 변환 중 오류 발생")
+                        .build();
             }
-            return resp;
-        } catch (IOException e) {
-            log.error("Failed to read requirement JSON for productId={}", productId, e);
+            
+            // JSON 파일로 저장 (AI 엔진 호출 시에만, DB 캐시가 없었을 때만)
+            // 에러가 나도 반드시 저장 시도
+            if (cachedAnalysis.isEmpty()) {
+                try {
+                    saveRequirementResultToJson(product.getProductName(), aiResult);
+                    log.info("💾 JSON 파일 저장 성공 - productId: {}", productId);
+                } catch (Exception e) {
+                    log.error("❌ JSON 파일 저장 실패 (계속 진행) - productId: {}, 오류: {}", productId, e.getMessage());
+                    // JSON 저장 실패해도 계속 진행
+                }
+            }
+            
+            log.info("✅ AI 엔진 요구사항 분석 완료 - productId: {}, 신뢰도: {}, 유효성: {}", 
+                    productId, response.getConfidenceScore(), response.isValid());
+            
+            return response;
+            
+        } catch (Exception e) {
+            log.error("요구사항 분석 실행 실패 - productId: {}, 오류: {}", productId, e.getMessage(), e);
             return RequirementAnalysisResponse.builder()
                     .productId(String.valueOf(productId))
                     .isValid(false)
                     .confidenceScore(0.0)
-                    .pendingAnalysis("Failed to load requirement JSON")
+                    .pendingAnalysis("요구사항 분석 중 오류 발생: " + e.getMessage())
                     .build();
         }
     }
+    
+    /**
+     * AI 엔진 응답을 RequirementAnalysisResponse로 변환
+     */
+    private RequirementAnalysisResponse convertAiResultToResponse(Long productId, String productName, Map<String, Object> aiResult) {
+        try {
+            // DB 캐시에서 온 데이터인지 확인 (필드 구조가 다름)
+            boolean isFromCache = aiResult.containsKey("critical_actions");
+            
+            // AI 엔진 응답에서 데이터 추출
+            boolean isValid = !aiResult.containsKey("error") && 
+                            (isFromCache || "completed".equals(aiResult.get("status")));
+            
+            Double confidenceScore = 0.85; // 기본값
+            String hsCode = aiResult.get("hs_code") != null ? aiResult.get("hs_code").toString() : "";
+            
+            // 데이터 추출 (DB 캐시 vs AI 엔진 응답)
+            List<Object> criticalActions = new ArrayList<>();
+            List<Object> requiredDocuments = new ArrayList<>();
+            List<Object> complianceSteps = new ArrayList<>();
+            Object timeline = "";
+            
+            if (isFromCache) {
+                // DB 캐시 데이터 (data.sql 형식)
+                log.info("📦 DB 캐시 데이터 파싱");
+                
+                if (aiResult.containsKey("critical_actions")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> actions = (List<Object>) aiResult.get("critical_actions");
+                    if (actions != null) criticalActions.addAll(actions);
+                }
+                
+                if (aiResult.containsKey("required_documents")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> docs = (List<Object>) aiResult.get("required_documents");
+                    if (docs != null) requiredDocuments.addAll(docs);
+                }
+                
+                if (aiResult.containsKey("compliance_steps")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> steps = (List<Object>) aiResult.get("compliance_steps");
+                    if (steps != null) complianceSteps.addAll(steps);
+                }
+                
+                timeline = aiResult.getOrDefault("timeline", "");
+                
+            } else if (aiResult.containsKey("llm_summary")) {
+                // AI 엔진 응답 (llm_summary 형식)
+                log.info("🤖 AI 엔진 응답 데이터 파싱");
+                
+                @SuppressWarnings("unchecked")
+                Map<String, Object> llmSummary = (Map<String, Object>) aiResult.get("llm_summary");
+                if (llmSummary != null) {
+                    // 신뢰도 점수
+                    if (llmSummary.containsKey("confidence_score")) {
+                        confidenceScore = ((Number) llmSummary.get("confidence_score")).doubleValue();
+                    }
+                    
+                    // 타임라인
+                    if (llmSummary.containsKey("timeline")) {
+                        timeline = llmSummary.get("timeline");
+                    }
+                    
+                    // critical_requirements
+                    if (llmSummary.containsKey("critical_requirements")) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> reqs = (List<Object>) llmSummary.get("critical_requirements");
+                        if (reqs != null) criticalActions.addAll(reqs);
+                    }
+                    
+                    // required_documents
+                    if (llmSummary.containsKey("required_documents")) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> docs = (List<Object>) llmSummary.get("required_documents");
+                        if (docs != null) requiredDocuments.addAll(docs);
+                    }
+                    
+                    // compliance_steps
+                    if (llmSummary.containsKey("compliance_steps")) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> steps = (List<Object>) llmSummary.get("compliance_steps");
+                        if (steps != null) complianceSteps.addAll(steps);
+                    }
+                }
+            }
+            
+            // sources 추출 (각 항목의 source_url에서)
+            List<Object> sources = new ArrayList<>();
+            Set<String> uniqueSources = new HashSet<>();
+            
+            // critical_actions에서 source_url 추출
+            for (Object action : criticalActions) {
+                if (action instanceof Map) {
+                    Map<?, ?> actionMap = (Map<?, ?>) action;
+                    Object sourceUrl = actionMap.get("source_url");
+                    if (sourceUrl != null && !uniqueSources.contains(sourceUrl.toString())) {
+                        sources.add(sourceUrl.toString());
+                        uniqueSources.add(sourceUrl.toString());
+                    }
+                }
+            }
+            
+            // required_documents에서 source_url 추출
+            for (Object doc : requiredDocuments) {
+                if (doc instanceof Map) {
+                    Map<?, ?> docMap = (Map<?, ?>) doc;
+                    Object sourceUrl = docMap.get("source_url");
+                    if (sourceUrl != null && !uniqueSources.contains(sourceUrl.toString())) {
+                        sources.add(sourceUrl.toString());
+                        uniqueSources.add(sourceUrl.toString());
+                    }
+                }
+            }
+            
+            // compliance_steps에서 source_url 추출
+            for (Object step : complianceSteps) {
+                if (step instanceof Map) {
+                    Map<?, ?> stepMap = (Map<?, ?>) step;
+                    Object sourceUrl = stepMap.get("source_url");
+                    if (sourceUrl != null && !uniqueSources.contains(sourceUrl.toString())) {
+                        sources.add(sourceUrl.toString());
+                        uniqueSources.add(sourceUrl.toString());
+                    }
+                }
+            }
+            
+            // timeline에서 source_url 추출
+            if (timeline instanceof Map) {
+                Map<?, ?> timelineMap = (Map<?, ?>) timeline;
+                Object sourceUrl = timelineMap.get("source_url");
+                if (sourceUrl != null && !uniqueSources.contains(sourceUrl.toString())) {
+                    sources.add(sourceUrl.toString());
+                    uniqueSources.add(sourceUrl.toString());
+                }
+            }
+            
+            // 추천 기관을 sources로 변환 (fallback)
+            if (sources.isEmpty() && aiResult.containsKey("recommended_agencies")) {
+                @SuppressWarnings("unchecked")
+                List<String> agencies = (List<String>) aiResult.get("recommended_agencies");
+                if (agencies != null) {
+                    for (String agency : agencies) {
+                        switch (agency.toUpperCase()) {
+                            case "FDA":
+                                sources.add("https://www.fda.gov/cosmetics/cosmetics-laws-regulations");
+                                break;
+                            case "EPA":
+                                sources.add("https://www.epa.gov/laws-regulations");
+                                break;
+                            case "USDA":
+                                sources.add("https://www.usda.gov/topics");
+                                break;
+                            case "CPSC":
+                                sources.add("https://www.cpsc.gov/Regulations-Laws--Standards");
+                                break;
+                            case "FCC":
+                                sources.add("https://www.fcc.gov/engineering-technology/rules-regulations");
+                                break;
+                            case "CBP":
+                                sources.add("https://www.cbp.gov/trade/programs-administration");
+                                break;
+                        }
+                    }
+                }
+            }
+            
+            // 분석 요약 생성
+            StringBuilder analysisSummary = new StringBuilder();
+            if (isValid && aiResult.containsKey("recommended_agencies")) {
+                @SuppressWarnings("unchecked")
+                List<String> agencies = (List<String>) aiResult.get("recommended_agencies");
+                if (agencies != null && !agencies.isEmpty()) {
+                    analysisSummary.append("추천 기관: ").append(String.join(", ", agencies));
+                }
+            }
+            
+            if (!isValid && aiResult.containsKey("error")) {
+                analysisSummary.append("AI 엔진 연결 실패");
+            } else if (!isValid) {
+                analysisSummary.append("분석 실패");
+            }
+            
+            // Object를 그대로 유지 (프론트엔드가 객체/문자열 둘 다 처리 가능)
+            List<Object> criticalActionsStr = new ArrayList<>(criticalActions);
+            List<Object> requiredDocumentsStr = new ArrayList<>(requiredDocuments);
+            List<Object> complianceStepsStr = new ArrayList<>(complianceSteps);
+            
+            log.info("✅ 데이터 변환 완료 - actions: {}, docs: {}, steps: {}",
+                    criticalActionsStr.size(), requiredDocumentsStr.size(), complianceStepsStr.size());
+            
+            return RequirementAnalysisResponse.builder()
+                    .productId(String.valueOf(productId))
+                    .productName(productName)
+                    .hsCode(hsCode != null ? hsCode : "")
+                    .criticalActions(criticalActionsStr)
+                    .requiredDocuments(requiredDocumentsStr)
+                    .complianceSteps(complianceStepsStr)
+                    .timeline(timeline)
+                    .sources(sources)
+                    .confidenceScore(confidenceScore)
+                    .isValid(isValid)
+                    .pendingAnalysis(isValid ? "AI 분석 완료" : analysisSummary.toString())
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("AI 결과 변환 실패 - productId: {}, 오류: {}", productId, e.getMessage());
+            return RequirementAnalysisResponse.builder()
+                    .productId(String.valueOf(productId))
+                    .productName(productName)
+                    .isValid(false)
+                    .confidenceScore(0.0)
+                    .pendingAnalysis("결과 변환 중 오류 발생: " + e.getMessage())
+                    .build();
+        }
+    }
+    
+    /**
+     * 요구사항 분석 결과를 JSON 파일로 저장
+     * 파일명 형식: requirement_{상품명}_{YYMMDD}.json
+     * 
+     * @param productName 상품명
+     * @param aiResult AI 엔진 분석 결과
+     */
+    private void saveRequirementResultToJson(String productName, Map<String, Object> aiResult) {
+        try {
+            // 디렉토리 생성
+            Path dirPath = Paths.get(REQUIREMENTS_DIR);
+            if (!Files.exists(dirPath)) {
+                Files.createDirectories(dirPath);
+                log.info("📁 요구사항 결과 저장 디렉토리 생성: {}", dirPath.toAbsolutePath());
+            }
+            
+            // 파일명 생성: requirement_{상품명}_{YYMMDD}.json
+            String sanitizedProductName = sanitizeFileName(productName);
+            String dateStr = LocalDateTime.now().format(DATE_FORMATTER);
+            String fileName = String.format("requirement_%s_%s.json", sanitizedProductName, dateStr);
+            Path filePath = dirPath.resolve(fileName);
+            
+            // JSON 파일로 저장 (예쁘게 포맷팅)
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), aiResult);
+            
+            log.info("💾 요구사항 분석 결과 JSON 저장 완료: {}", filePath.toAbsolutePath());
+            
+        } catch (IOException e) {
+            log.error("❌ JSON 파일 저장 실패 - 상품명: {}, 오류: {}", productName, e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 파일명에 사용할 수 없는 문자 제거 및 정리
+     * 
+     * @param name 원본 이름
+     * @return 정리된 파일명
+     */
+    private String sanitizeFileName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "unknown";
+        }
+        
+        // 파일명에 사용할 수 없는 문자 제거: \ / : * ? " < > |
+        String sanitized = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        
+        // 공백을 언더스코어로 변경
+        sanitized = sanitized.replaceAll("\\s+", "_");
+        
+        // 연속된 언더스코어를 하나로
+        sanitized = sanitized.replaceAll("_+", "_");
+        
+        // 앞뒤 언더스코어 제거
+        sanitized = sanitized.replaceAll("^_+|_+$", "");
+        
+        // 최대 길이 제한 (50자)
+        if (sanitized.length() > 50) {
+            sanitized = sanitized.substring(0, 50);
+        }
+        
+        // 빈 문자열이면 기본값
+        if (sanitized.isEmpty()) {
+            sanitized = "unknown";
+        }
+        
+        return sanitized;
+    }
 }
-
-/*
- Legacy DB-based implementation (kept for reference, not active):
-
-// package com.suracle.backend_api.service;
-//
-// import com.suracle.backend_api.dto.requirement.RequirementAnalysisResponse;
-// import com.suracle.backend_api.entity.cache.ProductAnalysisCache;
-// import com.suracle.backend_api.entity.product.Product;
-// import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
-// import com.suracle.backend_api.repository.ProductRepository;
-// import lombok.RequiredArgsConstructor;
-// import lombok.extern.slf4j.Slf4j;
-// import org.springframework.stereotype.Service;
-//
-// import java.util.ArrayList;
-// import java.util.List;
-// import java.util.Optional;
-//
-// @Service
-// @RequiredArgsConstructor
-// @Slf4j
-// public class RequirementService {
-//
-//     private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
-//     private final ProductRepository productRepository;
-//
-//     public RequirementAnalysisResponse getRequirementAnalysis(Long productId) {
-//         log.info("Getting requirement analysis for product ID: {}", productId);
-//
-//         Optional<Product> productOpt = productRepository.findById(productId.intValue());
-//         if (productOpt.isEmpty()) {
-//             throw new RuntimeException("Product not found with ID: " + productId);
-//         }
-//
-//         Product product = productOpt.get();
-//
-//         Optional<ProductAnalysisCache> cacheOpt = productAnalysisCacheRepository
-//             .findByProductIdAndAnalysisType(productId.intValue(), "requirements");
-//
-//         if (cacheOpt.isEmpty()) {
-//             log.warn("No requirement analysis cache found for product ID: {}", productId);
-//             return createEmptyResponse(product);
-//         }
-//
-//         ProductAnalysisCache cache = cacheOpt.get();
-//
-//         try {
-//             return parseRequirementAnalysis(cache, product);
-//         } catch (Exception e) {
-//             log.error("Error parsing requirement analysis for product ID: {}", productId, e);
-//             return createEmptyResponse(product);
-//         }
-//     }
-//
-//     private RequirementAnalysisResponse parseRequirementAnalysis(ProductAnalysisCache cache, Product product) {
-//         try {
-//             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-//             com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(cache.getAnalysisResult());
-//
-//             return RequirementAnalysisResponse.builder()
-//                 .productId(product.getProductId())
-//                 .productName(product.getProductName())
-//                 .hsCode(product.getHsCode())
-//                 .criticalActions(parseStringArray(jsonNode.path("critical_actions")))
-//                 .requiredDocuments(parseStringArray(jsonNode.path("required_documents")))
-//                 .complianceSteps(parseStringArray(jsonNode.path("compliance_steps")))
-//                 .timeline(jsonNode.path("timeline").asText(null))
-//                 .brokerRejectionReason(jsonNode.path("broker_rejection_reason").asText(null))
-//                 .criticalDeadline(jsonNode.path("critical_deadline").asText(null))
-//                 .qualityStandards(jsonNode.path("quality_standards").asText(null))
-//                 .coldChainRequirement(jsonNode.path("cold_chain_requirement").asText(null))
-//                 .criticalWarning(jsonNode.path("critical_warning").asText(null))
-//                 .pendingAnalysis(jsonNode.path("pending_analysis").asText(null))
-//                 .sources(parseStringArrayFromSources(cache.getSources()))
-//                 .confidenceScore(cache.getConfidenceScore().doubleValue())
-//                 .isValid(cache.getIsValid())
-//                 .lastUpdated(cache.getUpdatedAt().toString())
-//                 .build();
-//         } catch (Exception e) {
-//             log.error("Error parsing requirement analysis JSON for product ID: {}", product.getId(), e);
-//             return createEmptyResponse(product);
-//         }
-//     }
-//
-//     private List<String> parseStringArray(com.fasterxml.jackson.databind.JsonNode jsonNode) {
-//         List<String> result = new ArrayList<>();
-//         if (jsonNode.isArray()) {
-//             for (com.fasterxml.jackson.databind.JsonNode node : jsonNode) {
-//                 result.add(node.asText());
-//             }
-//         }
-//         return result;
-//     }
-//
-//     private List<String> parseStringArrayFromSources(String sourcesJson) {
-//         List<String> result = new ArrayList<>();
-//         try {
-//             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-//             com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(sourcesJson);
-//             if (jsonNode.isArray()) {
-//                 for (com.fasterxml.jackson.databind.JsonNode node : jsonNode) {
-//                     result.add(node.asText());
-//                 }
-//             }
-//         } catch (Exception e) {
-//             log.error("Error parsing sources JSON: {}", sourcesJson, e);
-//         }
-//         return result;
-//     }
-//
-//     private RequirementAnalysisResponse createEmptyResponse(Product product) {
-//         return RequirementAnalysisResponse.builder()
-//             .productId(product.getProductId())
-//             .productName(product.getProductName())
-//             .hsCode(product.getHsCode())
-//             .criticalActions(new ArrayList<>())
-//             .requiredDocuments(new ArrayList<>())
-//             .complianceSteps(new ArrayList<>())
-//             .timeline(null)
-//             .brokerRejectionReason(null)
-//             .criticalDeadline(null)
-//             .qualityStandards(null)
-//             .coldChainRequirement(null)
-//             .criticalWarning(null)
-//             .pendingAnalysis(null)
-//             .sources(new ArrayList<>())
-//             .confidenceScore(0.0)
-//             .isValid(false)
-//             .lastUpdated(null)
-//             .build();
-//     }
-// }
-*/
-
-
-

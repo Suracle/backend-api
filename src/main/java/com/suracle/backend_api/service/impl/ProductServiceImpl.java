@@ -16,7 +16,6 @@ import com.suracle.backend_api.repository.ProductAnalysisCacheRepository;
 import com.suracle.backend_api.repository.ProductRepository;
 import com.suracle.backend_api.repository.UserRepository;
 import com.suracle.backend_api.service.AiWorkflowService;
-import com.suracle.backend_api.service.ProductAnalysisService;
 import com.suracle.backend_api.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +39,6 @@ public class ProductServiceImpl implements ProductService {
     private final UserRepository userRepository;
     private final HsCodeRepository hsCodeRepository;
     private final ProductAnalysisCacheRepository productAnalysisCacheRepository;
-    private final ProductAnalysisService productAnalysisService;
     private final AiWorkflowService aiWorkflowService;
     private final ObjectMapper objectMapper;
 
@@ -76,17 +76,35 @@ public class ProductServiceImpl implements ProductService {
         log.info("상품 등록 완료 - 상품 ID: {}, 상품명: {}", savedProduct.getProductId(), savedProduct.getProductName());
 
         // 백그라운드 분석 스케줄링 (HS코드가 있는 경우에만)
-        // AI 분석 임시 비활성화 - PostgreSQL JSON 타입 오류로 인해
         if (savedProduct.getHsCode() != null && !savedProduct.getHsCode().trim().isEmpty()) {
-            log.info("HS코드가 존재하여 AI 워크플로우 실행 및 결과 저장 스케줄링 - 상품 ID: {}", savedProduct.getProductId());
-            try {
-                Map<String, Object> aiAnalysisResult = aiWorkflowService.executePrecedentsAnalysis(savedProduct);
-                savePrecedentsAnalysisResult(savedProduct, aiAnalysisResult);
-            } catch (Exception e) {
-                log.error("AI 워크플로우 실행 및 결과 저장 실패 - 상품 ID: {}, 오류: {}", savedProduct.getProductId(), e.getMessage(), e);
-            }
-            // 기존 분석 서비스 비활성화
-            // productAnalysisService.scheduleBackgroundAnalysis(savedProduct);
+            log.info("HS코드가 존재하여 백그라운드 AI 분석 스케줄링 - 상품 ID: {}", savedProduct.getProductId());
+            
+            // 비동기로 분석 실행
+            CompletableFuture.runAsync(() -> {
+                try {
+                    log.info("백그라운드 분석 시작 - 상품 ID: {}", savedProduct.getProductId());
+                    
+                    // 1. 판례 분석
+                    Map<String, Object> precedentsResult = aiWorkflowService.executePrecedentsAnalysis(savedProduct);
+                    savePrecedentsAnalysisResult(savedProduct, precedentsResult);
+                    log.info("판례 분석 완료 - 상품 ID: {}", savedProduct.getProductId());
+                    
+                    // 2. 요구사항 분석
+                    boolean shouldRunRequirements = shouldRunRequirementsAnalysis(savedProduct);
+                    if (shouldRunRequirements) {
+                        Map<String, Object> requirementsResult = aiWorkflowService.executeRequirementsAnalysis(savedProduct);
+                        saveRequirementsAnalysisResult(savedProduct, requirementsResult);
+                        log.info("요구사항 분석 완료 - 상품 ID: {}", savedProduct.getProductId());
+                    } else {
+                        log.info("요구사항 분석 스킵 (캐시 존재) - 상품 ID: {}", savedProduct.getProductId());
+                    }
+                    
+                    log.info("백그라운드 분석 완료 - 상품 ID: {}", savedProduct.getProductId());
+                    
+                } catch (Exception e) {
+                    log.error("백그라운드 분석 실행 실패 - 상품 ID: {}, 오류: {}", savedProduct.getProductId(), e.getMessage(), e);
+                }
+            });
         }
 
         return convertToProductResponseDto(savedProduct);
@@ -268,6 +286,7 @@ public class ProductServiceImpl implements ProductService {
                 if (analysisResultJson != null && !analysisResultJson.isEmpty()) {
                     try {
                         // JSON을 Map으로 변환
+                        @SuppressWarnings("unchecked")
                         Map<String, Object> analysisResult = objectMapper.convertValue(analysisResultJson, Map.class);
                         
                         // PrecedentsResponseDto로 변환
@@ -404,7 +423,167 @@ public class ProductServiceImpl implements ProductService {
                 .build();
     }
 
-    private void savePrecedentsAnalysisResult(Product product, Map<String, Object> analysisResult) {
+    @Override
+    @Transactional
+    public void saveRequirementsAnalysisResult(Product product, Map<String, Object> analysisResult) {
+        try {
+            log.info("요구사항 분석 결과 저장 시작 - 상품 ID: {}", product.getProductId());
+            
+            JsonNode analysisResultJson = objectMapper.valueToTree(analysisResult);
+            
+            // 기존 캐시 확인 (동시성 문제 해결을 위해 트랜잭션 내에서 다시 조회)
+            Optional<ProductAnalysisCache> existingCache = productAnalysisCacheRepository
+                .findByProductIdAndAnalysisType(product.getId(), "requirements");
+            
+            if (existingCache.isPresent()) {
+                // 기존 캐시 업데이트
+                ProductAnalysisCache cache = existingCache.get();
+                cache.setAnalysisResult(analysisResultJson);
+                cache.setConfidenceScore(java.math.BigDecimal.valueOf(extractConfidenceScore(analysisResult)));
+                cache.setIsValid(extractIsValid(analysisResult));
+                cache.setSources(objectMapper.valueToTree(extractSources(analysisResult)));
+                cache.setUpdatedAt(LocalDateTime.now());
+                
+                productAnalysisCacheRepository.save(cache);
+                log.info("요구사항 분석 결과 업데이트 완료 - 상품 ID: {}", product.getProductId());
+                
+            } else {
+                // 새 캐시 생성 (중복 가능성 체크)
+                try {
+                    List<String> sources = extractSources(analysisResult);
+                    
+                    ProductAnalysisCache cache = ProductAnalysisCache.builder()
+                        .product(product)
+                        .analysisType("requirements")
+                        .analysisResult(analysisResultJson)
+                        .confidenceScore(java.math.BigDecimal.valueOf(extractConfidenceScore(analysisResult)))
+                        .isValid(extractIsValid(analysisResult))
+                        .sources(objectMapper.valueToTree(sources))
+                        .build();
+                    
+                    productAnalysisCacheRepository.save(cache);
+                    log.info("요구사항 분석 결과 저장 완료 - 상품 ID: {}", product.getProductId());
+                    
+                } catch (Exception duplicateError) {
+                    if (duplicateError.getMessage() != null && 
+                        duplicateError.getMessage().contains("중복된 키")) {
+                        log.warn("중복된 분석 결과 감지, 기존 캐시 업데이트로 전환 - 상품 ID: {}", product.getProductId());
+                        // 중복 발생 시 기존 캐시 업데이트로 처리
+                        saveRequirementsAnalysisResult(product, analysisResult);
+                        return;
+                    } else {
+                        throw duplicateError;
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("요구사항 분석 결과 저장 실패 - 상품 ID: {}", product.getProductId(), e);
+            throw new RuntimeException("요구사항 분석 결과 저장 중 오류가 발생했습니다: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void saveAnalysisResult(Product product, Map<String, Object> analysisResult) {
+        try {
+            String analysisType = (String) analysisResult.getOrDefault("analysis_type", "precedents");
+            JsonNode analysisResultJson = objectMapper.valueToTree(analysisResult);
+
+            ProductAnalysisCache cache = productAnalysisCacheRepository
+                    .findByProductIdAndAnalysisType(product.getId(), analysisType)
+                    .orElse(ProductAnalysisCache.builder()
+                            .product(product)
+                            .analysisType(analysisType)
+                            .build());
+
+            cache.setAnalysisResult(analysisResultJson);
+            if (analysisResult.containsKey("sources")) {
+                cache.setSources(objectMapper.valueToTree(analysisResult.get("sources")));
+            }
+            cache.setConfidenceScore(java.math.BigDecimal.valueOf(extractConfidenceScore(analysisResult)));
+            cache.setIsValid(extractIsValid(analysisResult));
+
+            productAnalysisCacheRepository.save(cache);
+            log.info("제네릭 분석 결과 저장 완료 - 상품 ID: {}, 타입: {}", product.getProductId(), analysisType);
+        } catch (Exception e) {
+            log.error("제네릭 분석 결과 저장 실패 - 상품 ID: {}", product.getProductId(), e);
+        }
+    }
+
+    /**
+     * 요구사항 분석 실행 여부 판단
+     * 3가지 조건: 상품 등록 시, DB에 없을 시, 수동 리프레시 시
+     */
+    /**
+     * 요구사항 분석 실행이 필요한지 확인 (캐시 우선, HS코드 공유 로직 포함)
+     * @param product 상품 정보
+     * @return true: 실행 필요, false: 캐시 존재로 실행 불필요
+     */
+    private boolean shouldRunRequirementsAnalysis(Product product) {
+        try {
+            log.info("요구사항 분석 실행 조건 확인 - 상품 ID: {}, HS코드: {}", product.getProductId(), product.getHsCode());
+            
+            // HS코드가 없으면 실행하지 않음
+            if (product.getHsCode() == null || product.getHsCode().trim().isEmpty()) {
+                log.info("HS코드가 없어 요구사항 분석 스킵 - 상품 ID: {}", product.getProductId());
+                return false;
+            }
+            
+            // 조건 1: 현재 상품의 캐시 확인
+            Optional<ProductAnalysisCache> currentProductCache = productAnalysisCacheRepository
+                .findByProductIdAndAnalysisType(product.getId(), "requirements");
+            
+            if (currentProductCache.isPresent()) {
+                ProductAnalysisCache cache = currentProductCache.get();
+                // 캐시가 있고 유효한 경우 (7일 이내)
+                if (cache.getUpdatedAt() != null && 
+                    cache.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(7))) {
+                    log.info("현재 상품의 요구사항 분석 캐시 존재 (7일 이내) - 상품 ID: {}", product.getProductId());
+                    return false; // 캐시가 있으면 실행하지 않음
+                }
+            }
+            
+            // 조건 2: 같은 HS코드의 다른 상품 캐시 확인 (AI 엔진 캐시 활용)
+            List<ProductAnalysisCache> hsCodeCaches = productAnalysisCacheRepository
+                .findByProductHsCodeAndAnalysisType(product.getHsCode(), "requirements");
+            
+            if (!hsCodeCaches.isEmpty()) {
+                // 같은 HS코드의 캐시 중 가장 최근 것 확인
+                ProductAnalysisCache recentHsCodeCache = hsCodeCaches.stream()
+                        .filter(cache -> cache.getUpdatedAt() != null)
+                        .filter(cache -> cache.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(7)))
+                        .max((c1, c2) -> c1.getUpdatedAt().compareTo(c2.getUpdatedAt()))
+                        .orElse(null);
+                
+                if (recentHsCodeCache != null) {
+                    log.info("✅ 같은 HS코드의 요구사항 분석 캐시 활용 가능 (7일 이내) - HS코드: {}, 상품 ID: {}", 
+                            product.getHsCode(), product.getProductId());
+                    
+                    // 현재 상품에도 캐시 복사 (지능형 캐싱)
+                    ProductAnalysisCache newCache = ProductAnalysisCache.builder()
+                            .product(product)
+                            .analysisType("requirements")
+                            .analysisResult(recentHsCodeCache.getAnalysisResult())
+                            .confidenceScore(recentHsCodeCache.getConfidenceScore())
+                            .isValid(recentHsCodeCache.getIsValid())
+                            .build();
+                    productAnalysisCacheRepository.save(newCache);
+                    
+                    return false; // 캐시가 있으면 실행하지 않음
+                }
+            }
+            
+            log.info("요구사항 분석 실행 필요 - 상품 ID: {}, HS코드: {}", product.getProductId(), product.getHsCode());
+            return true;
+            
+        } catch (Exception e) {
+            log.error("요구사항 분석 실행 조건 확인 실패 - 상품 ID: {}", product.getProductId(), e);
+            return true; // 오류 시 실행
+        }
+    }
+
+    @Override
+    public void savePrecedentsAnalysisResult(Product product, Map<String, Object> analysisResult) {
         try {
             String analysisType = "precedents";
             JsonNode analysisResultJson = objectMapper.valueToTree(analysisResult);
@@ -451,5 +630,117 @@ public class ProductServiceImpl implements ProductService {
                 .confidenceScore(0.0)
                 .isValid(false)
                 .build();
+    }
+    
+    private Double extractConfidenceScore(Map<String, Object> analysisResult) {
+        try {
+            // llm_summary에서 confidence_score 추출 (우선순위 1)
+            if (analysisResult.containsKey("llm_summary")) {
+                Object llmSummaryObj = analysisResult.get("llm_summary");
+                if (llmSummaryObj instanceof Map) {
+                    Map<?, ?> llmSummary = (Map<?, ?>) llmSummaryObj;
+                    if (llmSummary.containsKey("confidence_score")) {
+                        Object score = llmSummary.get("confidence_score");
+                        if (score instanceof Number) {
+                            double confidence = ((Number) score).doubleValue();
+                            return confidence > 0.0 ? confidence : 0.85; // 기본값 0.85
+                        }
+                    }
+                }
+            }
+            
+            // metadata에서 confidence_score 추출 (우선순위 2)
+            if (analysisResult.containsKey("metadata")) {
+                Map<?, ?> metadata = (Map<?, ?>) analysisResult.get("metadata");
+                if (metadata.containsKey("confidence_score")) {
+                    Object score = metadata.get("confidence_score");
+                    if (score instanceof Number) {
+                        return ((Number) score).doubleValue();
+                    }
+                }
+            }
+            
+            // 최상위에서 confidence_score 추출 (우선순위 3)
+            if (analysisResult.containsKey("confidence_score")) {
+                Object score = analysisResult.get("confidence_score");
+                if (score instanceof Number) {
+                    return ((Number) score).doubleValue();
+                }
+            }
+            
+            // 기본값: requirements 분석은 기본적으로 중간 신뢰도
+            log.debug("신뢰도 점수 없음, 기본값 0.75 사용");
+            return 0.75;
+        } catch (Exception e) {
+            log.warn("⚠️ 신뢰도 점수 추출 실패 (기본값 사용): {}", e.getMessage());
+            return 0.75; // 오류 시에도 기본값 0.75
+        }
+    }
+    
+    private Boolean extractIsValid(Map<String, Object> analysisResult) {
+        try {
+            if (analysisResult.containsKey("metadata")) {
+                Map<?, ?> metadata = (Map<?, ?>) analysisResult.get("metadata");
+                if (metadata.containsKey("error")) {
+                    return !((Boolean) metadata.get("error"));
+                }
+            }
+            if (analysisResult.containsKey("is_valid")) {
+                return (Boolean) analysisResult.get("is_valid");
+            }
+        } catch (Exception e) {
+            log.warn("유효성 추출 실패: {}", e.getMessage());
+        }
+        return true;
+    }
+    
+    private List<String> extractSources(Map<String, Object> analysisResult) {
+        try {
+            if (analysisResult.containsKey("sources")) {
+                Object sourcesObj = analysisResult.get("sources");
+                if (sourcesObj instanceof List) {
+                    List<?> sourcesList = (List<?>) sourcesObj;
+                    return sourcesList.stream()
+                        .map((Object obj) -> {
+                            if (obj instanceof String) {
+                                return (String) obj;
+                            } else if (obj instanceof Map) {
+                                // 객체인 경우 URL 추출
+                                Map<?, ?> sourceMap = (Map<?, ?>) obj;
+                                Object url = sourceMap.get("url");
+                                return url != null ? url.toString() : obj.toString();
+                            }
+                            return obj.toString();
+                        })
+                        .collect(Collectors.toList());
+                }
+            }
+            if (analysisResult.containsKey("metadata")) {
+                Map<?, ?> metadata = (Map<?, ?>) analysisResult.get("metadata");
+                if (metadata.containsKey("sources")) {
+                    Object sourcesObj = metadata.get("sources");
+                    if (sourcesObj instanceof List) {
+                        List<?> sourcesList = (List<?>) sourcesObj;
+                        return sourcesList.stream()
+                            .map((Object obj) -> {
+                                if (obj instanceof String) {
+                                    return (String) obj;
+                                } else if (obj instanceof Map) {
+                                    Map<?, ?> sourceMap = (Map<?, ?>) obj;
+                                    Object url = sourceMap.get("url");
+                                    return url != null ? url.toString() : obj.toString();
+                                }
+                                return obj.toString();
+                            })
+                            .collect(Collectors.toList());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ sources 추출 실패 (빈 리스트 반환): {}", e.getMessage());
+        }
+        
+        // 기본값 반환 - 빈 리스트 (AI Engine이 citations 제공)
+        return List.of();
     }
 }

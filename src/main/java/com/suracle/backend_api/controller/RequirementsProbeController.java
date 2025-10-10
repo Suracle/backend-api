@@ -6,16 +6,50 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.suracle.backend_api.service.http.RequirementsApiClient;
 import com.suracle.backend_api.config.ApiKeysProperties;
 import com.suracle.backend_api.service.util.EnglishNameUtil;
+import com.suracle.backend_api.service.util.ChemicalNameMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
  
 
+/**
+ * 요건 API 프로빙 및 테스트 컨트롤러
+ * 
+ * <p>이 컨트롤러는 정부 API 연결 상태를 테스트하고 디버깅 정보를 제공합니다.
+ * 
+ * <p>주요 기능:
+ * <ul>
+ *   <li>GET /api/requirements/probe/all: 모든 정부 API 테스트</li>
+ *   <li>API 연결 상태 확인 (HEAD 요청)</li>
+ *   <li>실제 데이터 수신 여부 확인</li>
+ *   <li>Citations 생성 (시도한 URL 목록)</li>
+ *   <li>JSON 파일로 저장 가능 (save=true)</li>
+ * </ul>
+ * 
+ * <p>파라미터:
+ * <ul>
+ *   <li>product: 제품명 (한글/영문)</li>
+ *   <li>hs: HS 코드</li>
+ *   <li>includePayloads: 응답 데이터 포함 여부 (기본: false)</li>
+ *   <li>debug: 디버깅 정보 포함 여부 (기본: false)</li>
+ *   <li>save: JSON 파일 저장 여부 (기본: false)</li>
+ * </ul>
+ * 
+ * <p>주의: 이 컨트롤러는 개발/테스트 목적으로만 사용하며 프로덕션에서는 비활성화 권장합니다.
+ * 
+ * @see RequirementsApiClient
+ */
 @RestController
 @RequestMapping("/api/requirements/probe")
 @RequiredArgsConstructor
@@ -25,6 +59,7 @@ public class RequirementsProbeController {
     private final RequirementsApiClient client;
     private final ApiKeysProperties keys;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplate restTemplate;
 
     @GetMapping(value = "/all", produces = "application/json; charset=UTF-8")
     public ResponseEntity<JsonNode> probeAll(
@@ -60,39 +95,55 @@ public class RequirementsProbeController {
                 results.set("fda_food_enforcement_payload", json);
             }
         }, () -> results.put("fda_food_enforcement", false));
-        client.callOpenFdaFoodEvent(english).ifPresentOrElse(json -> {
-            results.put("fda_food_event", true);
-            if (includePayloads) {
-                results.set("fda_food_event_payload", json);
-            }
-        }, () -> results.put("fda_food_event", false));
+        // FDA Food Event는 openFDA에 존재하지 않아 제거됨
         String effectiveUsda = (usdaKey != null && !usdaKey.isBlank()) ? usdaKey : keys.getUsdaKey();
         String effectiveCbp = (cbpKey != null && !cbpKey.isBlank()) ? cbpKey : keys.getCbpKey();
+        String effectiveCensus = keys.getCensusKey();
 
-        client.callUsdaFoodDataCentralSearch(english, effectiveUsda).ifPresentOrElse(json -> {
+        client.callUsdaFoodDataCentralSearch(english, null).ifPresentOrElse(json -> {
             results.put("usda_fooddata_search", true);
             if (includePayloads) results.set("usda_fooddata_search_payload", json);
         }, () -> results.put("usda_fooddata_search", false));
-        client.callFccDeviceAuthorizationGrants(english).ifPresentOrElse(json -> {
-            results.put("fcc_grants", true);
-            if (includePayloads) results.set("fcc_grants_payload", json);
-        }, () -> results.put("fcc_grants", false));
+        // FCC Device Authorization은 회사명 기반이라 상품 키워드 탐색과 불일치 → 비활성화
+        // client.callFccDeviceAuthorizationGrants(english).ifPresentOrElse(json -> {
+        //     results.put("fcc_grants", true);
+        //     if (includePayloads) results.set("fcc_grants_payload", json);
+        // }, () -> results.put("fcc_grants", false));
         client.callCpscRecallsJson(english).ifPresentOrElse(json -> {
             results.put("cpsc_recalls_json", true);
             if (includePayloads) results.set("cpsc_recalls_json_payload", json);
         }, () -> results.put("cpsc_recalls_json", false));
-        client.callCbpTradeStatisticsHsCodes(hs == null ? "" : hs, effectiveCbp).ifPresentOrElse(json -> {
-            results.put("cbp_trade_hs_codes", true);
-            if (includePayloads) results.set("cbp_trade_hs_codes_payload", json);
-        }, () -> results.put("cbp_trade_hs_codes", false));
-        client.callEpaSrsChemname(english).ifPresentOrElse(json -> {
-            results.put("epa_srs_chemname", true);
-            if (includePayloads) results.set("epa_srs_chemname_payload", json);
-        }, () -> results.put("epa_srs_chemname", false));
-        client.callEpaCompToxSearch(english).ifPresentOrElse(json -> {
+        // CBP 통계 호출: 인증/승인 필요로 일반 사용 불가 → 비활성화
+        // client.callCbpTradeStatisticsHsCodes(hs == null ? "" : hs, null).ifPresentOrElse(json -> {
+        //     results.put("cbp_trade_hs_codes", true);
+        //     if (includePayloads) results.set("cbp_trade_hs_codes_payload", json);
+        // }, () -> results.put("cbp_trade_hs_codes", false));
+        // EPA SRS Chemname은 리디렉션으로 사용 불가 → 비활성화 (CompTox로 대체)
+        // client.callEpaSrsChemname(english).ifPresentOrElse(json -> {
+        //     results.put("epa_srs_chemname", true);
+        //     if (includePayloads) results.set("epa_srs_chemname_payload", json);
+        // }, () -> results.put("epa_srs_chemname", false));
+        // EPA CompTox: 성분 정식명으로 변환하여 검색
+        String chemicalName = ChemicalNameMapper.toChemicalName(english);
+        log.info("🔬 성분 매핑: {} → {}", english, chemicalName);
+        client.callEpaCompToxSearch(chemicalName).ifPresentOrElse(json -> {
             results.put("epa_comptox_search", true);
             if (includePayloads) results.set("epa_comptox_search_payload", json);
         }, () -> results.put("epa_comptox_search", false));
+        
+        // Census International Trade HS (imports, 최신 월 동적 조회)
+        java.time.YearMonth latestMonth = java.time.YearMonth.now();
+        String year = String.valueOf(latestMonth.getYear());
+        String month = String.format("%02d", latestMonth.getMonthValue());
+        log.info("📊 Census 조회 기준: {}-{} (최신 월)", year, month);
+        client.callCensusInternationalTradeHs(hs, "imports", year, month).ifPresentOrElse(json -> {
+            results.put("census_imports_hs", true);
+            if (includePayloads) results.set("census_imports_hs_payload", json);
+            log.info("✅ Census imports HS 데이터 수신: {} 레코드", json.isArray() ? json.size() : 1);
+        }, () -> {
+            results.put("census_imports_hs", false);
+            log.warn("⚠️ Census imports HS 데이터 없음 (연결은 정상, 데이터 0건)");
+        });
 
         root.set("results", results);
 
@@ -100,27 +151,46 @@ public class RequirementsProbeController {
             ObjectNode dbg = objectMapper.createObjectNode();
             // attempted URLs (primary ones only to avoid duplication)
             ObjectNode attempts = objectMapper.createObjectNode();
-            attempts.put("fda_cosmetic_event", "https://api.fda.gov/cosmetic/event.json?search=" + urlEncode("products.name_brand:\"" + english + "\"") + "&limit=10");
+            attempts.put("fda_cosmetics_event", "https://api.fda.gov/cosmetics/event.json?search=" + urlEncode("products.brand_name:\"" + english + "\" OR products.product_description:\"" + english + "\"") + "&limit=10");
             attempts.put("fda_food_enforcement", "https://api.fda.gov/food/enforcement.json?search=" + urlEncode("product_description:\"" + english + "\"") + "&limit=10");
-            attempts.put("fda_food_event", "https://api.fda.gov/food/event.json?search=" + urlEncode("products.name_brand:\"" + english + "\"") + "&limit=10");
+            // FDA food/event는 존재하지 않아 제거됨
             attempts.put("usda_fooddata_search", "https://api.nal.usda.gov/fdc/v1/foods/search?query=" + urlEncode(english) + "&pageSize=10&pageNumber=1" + (effectiveUsda == null || effectiveUsda.isBlank() ? "" : ("&api_key=" + mask(effectiveUsda))));
-            attempts.put("fcc_grants", "https://api.fcc.gov/device/authorization/grants?search=" + urlEncode("device_name:" + english) + "&limit=10&format=json");
+            // FCC grants는 상품 키워드 탐색과 불일치로 비활성화
+            // attempts.put("fcc_grants", "https://opendata.fcc.gov/resource/3b3k-34jp.json?$select=grantee_code,grantee_name,state&$where=upper(grantee_name)%20like%20%27%25" + urlEncode(english.toUpperCase()) + "%25%27&$limit=10");
             attempts.put("cpsc_recalls_json", "https://www.cpsc.gov/Recalls/CPSC-Recalls-API/recalls.json?search=" + urlEncode(english) + "&limit=10");
-            attempts.put("cbp_trade_hs_codes", "https://api.cbp.gov/trade/statistics/hs-codes?hs_code=" + urlEncode(hs == null ? "" : hs) + "&limit=10&format=json" + (effectiveCbp == null || effectiveCbp.isBlank() ? "" : ("&api_key=" + mask(effectiveCbp))));
-            attempts.put("epa_srs_chemname", "https://cdxapps.epa.gov/ords/srs/srs_api/chemname/" + urlEncode(english));
-            attempts.put("epa_comptox_search", "https://comptox.epa.gov/dashboard/api/chemical/search?search=" + urlEncode(english) + "&limit=10");
+            // CBP는 인증 필요로 비활성화
+            // attempts.put("cbp_trade_hs_codes", "https://api.cbp.gov/trade/statistics/hs-codes?hs_code=" + urlEncode(hs == null ? "" : hs) + "&limit=10&format=json");
+            // EPA SRS는 리디렉션으로 비활성화
+            // attempts.put("epa_srs_chemname", "https://cdxapps.epa.gov/ords/srs/srs_api/chemname/" + urlEncode(english));
+            attempts.put("epa_comptox_search", "https://comptox.epa.gov/dashboard/api/chemical/search?search=" + urlEncode(chemicalName) + "&limit=10");
+            attempts.put("census_imports_hs", "https://api.census.gov/data/timeseries/intltrade/imports/hs?get=CTY_CODE,HS,COMM_LVL,GEN_VAL_MO&time=" + year + "-" + month + "&CTY_CODE=5800&COMM_LVL=HS6" + (hs != null && !hs.isEmpty() ? ("&HS=" + urlEncode(hs)) : "") + (effectiveCensus != null && !effectiveCensus.isBlank() ? ("&key=" + mask(effectiveCensus)) : ""));
 
             dbg.set("attempted_urls", attempts);
+
+            // 간단 출처 목록 (GPT 스타일 인용) - 시도한 URL들을 정리
+            var citations = objectMapper.createArrayNode();
+            java.util.Iterator<java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> it = attempts.fields();
+            while (it.hasNext()) {
+                var entry = it.next();
+                var cite = objectMapper.createObjectNode();
+                cite.put("name", entry.getKey());
+                cite.put("url", entry.getValue().asText());
+                citations.add(cite);
+            }
+            root.set("citations", citations);
 
             // simple connectivity checks to hosts
             ObjectNode connectivity = objectMapper.createObjectNode();
             connectivity.set("api.fda.gov", head("https://api.fda.gov"));
             connectivity.set("api.nal.usda.gov", head("https://api.nal.usda.gov"));
             connectivity.set("comptox.epa.gov", head("https://comptox.epa.gov"));
-            connectivity.set("cdxapps.epa.gov", head("https://cdxapps.epa.gov"));
-            connectivity.set("api.fcc.gov", head("https://api.fcc.gov"));
+            // EPA SRS는 리디렉션으로 연결 체크 제외
+            // connectivity.set("cdxapps.epa.gov", head("https://cdxapps.epa.gov"));
+            connectivity.set("opendata.fcc.gov", head("https://opendata.fcc.gov"));
             connectivity.set("www.cpsc.gov", head("https://www.cpsc.gov"));
-            connectivity.set("api.cbp.gov", head("https://api.cbp.gov"));
+            // CBP는 인증 필요로 연결 체크 제외
+            // connectivity.set("api.cbp.gov", head("https://api.cbp.gov"));
+            connectivity.set("api.census.gov", head("https://api.census.gov"));
             dbg.set("connectivity", connectivity);
 
             root.set("debug", dbg);
@@ -161,13 +231,45 @@ public class RequirementsProbeController {
     }
 
     /**
-     * 제품명에서 핵심 키워드만 추출하여 API 검색에 최적화된 영어 검색어 생성
+     * AI 엔진에서 키워드 추출하여 첫 번째 키워드 반환 (fallback: 기존 로직)
      */
     private String extractCoreKeyword(String productName) {
         if (productName == null || productName.isBlank()) {
             return "";
         }
         
+        try {
+            // AI 엔진에서 키워드 추출 시도
+            String aiEngineUrl = "http://localhost:8000/keywords/extract";
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("product_name", productName);
+            requestBody.put("product_description", "");
+            
+            ResponseEntity<Map> response = restTemplate.postForEntity(aiEngineUrl, requestBody, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                List<String> keywords = (List<String>) responseBody.get("keywords");
+                
+                if (keywords != null && !keywords.isEmpty()) {
+                    // 첫 번째 키워드 반환
+                    String firstKeyword = keywords.get(0);
+                    log.info("AI 엔진에서 키워드 추출 성공: {} -> {}", productName, firstKeyword);
+                    return firstKeyword;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("AI 엔진 키워드 추출 실패, fallback 로직 사용: {}", e.getMessage());
+        }
+        
+        // Fallback: 기존 로직 사용
+        return extractCoreKeywordFallback(productName);
+    }
+    
+    /**
+     * 기존 키워드 추출 로직 (fallback)
+     */
+    private String extractCoreKeywordFallback(String productName) {
         String lower = productName.toLowerCase().trim();
         
         // 1. 한글 핵심 키워드 매핑 (우선순위 높음)

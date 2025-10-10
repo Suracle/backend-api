@@ -11,26 +11,36 @@ import java.util.Map;
 /**
  * 미국 정부 기관 API 엔드포인트 관리 클래스
  * Python의 api_endpoints.py와 동일한 정보를 Java로 제공
+ *
+ * 변경 요약 (2025-10-09):
+ * - Commerce(Census) 국제무역 HS 엔드포인트 추가 (imports/hs, exports/hs 등)
+ * - CBP(AES/ACE) 엔드포인트는 "인증 필요" 주석 및 비수집 권고 안내
+ * - EPA Envirofacts TRI 실테이블 tri.tri_facility 확인 반영 (기존 유지)
+ * - FCC Device Authorization(Socrata) 사용 시 X-App-Token 권장 및 백오프 필요 주석
+ * - (가이드) RequirementsApiClient에서 공통 헤더 권장:
+ *     Accept: application/json
+ *     User-Agent: LawGenie-Backend/1.0
+ *     (필요시) X-App-Token: <Socrata App Token>  // FCC/OpenData만
  */
 @Component
 @Getter
 public class ApiEndpointsManager {
-    
+
     private final Map<String, AgencyConfig> agencies;
-    
+
     public ApiEndpointsManager() {
         this.agencies = initializeAgencies();
     }
-    
+
     private Map<String, AgencyConfig> initializeAgencies() {
         Map<String, AgencyConfig> agencyMap = new HashMap<>();
-        
+
         // FDA (Food and Drug Administration)
         agencyMap.put("fda", new AgencyConfig(
             "FDA",
             "https://api.fda.gov",
             false,
-            "1000/day without key, 120000/day with key",
+            "1000/day without key, higher with key (openFDA)",
             Map.of(
                 "drug", Map.of(
                     "event", "https://api.fda.gov/drug/event.json",
@@ -46,24 +56,24 @@ public class ApiEndpointsManager {
                     "enforcement", "https://api.fda.gov/device/enforcement.json"
                 ),
                 "food", Map.of(
-                    "enforcement", "https://api.fda.gov/food/enforcement.json",
-                    "event", "https://api.fda.gov/food/event.json"
+                    "enforcement", "https://api.fda.gov/food/enforcement.json"
+                    // "event" 엔드포인트는 openFDA에 존재하지 않아 사용하지 않음
                 ),
-                "cosmetic", Map.of(
-                    "event", "https://api.fda.gov/cosmetic/event.json"
+                "cosmetics", Map.of(
+                    "event", "https://api.fda.gov/cosmetics/event.json"
                 ),
                 "animalandveterinary", Map.of(
                     "event", "https://api.fda.gov/animalandveterinary/event.json"
                 )
             )
         ));
-        
-        // USDA (U.S. Department of Agriculture)
+
+        // USDA (U.S. Department of Agriculture) - FDC는 API 키 필요
         agencyMap.put("usda", new AgencyConfig(
             "USDA",
             "https://api.nal.usda.gov",
             true,
-            "1000/day",
+            "1000/day (FDC requires API key)",
             Map.of(
                 "fooddata_central", Map.of(
                     "foods", "https://api.nal.usda.gov/fdc/v1/foods",
@@ -79,28 +89,32 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // EPA (Environmental Protection Agency)
         agencyMap.put("epa", new AgencyConfig(
             "EPA",
             "https://data.epa.gov",
             false,
-            "1000/hour",
+            "Typical: 1000/hour (varies by service)",
             Map.of(
-                "envirofacts", Map.of(
-                    "base", "https://data.epa.gov/efservice",
-                    "chemical_search", "https://data.epa.gov/efservice/srs.srs_chemicals/chem_name/LIKE/{query}/JSON",
-                    "facility_search", "https://data.epa.gov/efservice/frs.frs_facilities/facility_name/LIKE/{query}/JSON",
-                    "tri_search", "https://data.epa.gov/efservice/tri.tri_facility/facility_name/LIKE/{query}/JSON",
-                    "rcra_search", "https://data.epa.gov/efservice/rcra.rcra_handler/handler_name/LIKE/{query}/JSON",
-                    "sdwis_search", "https://data.epa.gov/efservice/sdwis.sdwis_public_water_systems/pws_name/LIKE/{query}/JSON"
-                ),
+                // Envirofacts(시설/사업장 중심)는 상품 키워드 탐색과 목적 불일치 → 기본 비활성화 권고
+                // 필요 시 아래 블록을 복구해서 사용하세요.
+                // "envirofacts", Map.of(
+                //     "base", "https://data.epa.gov/efservice",
+                //     "tri_search", "https://data.epa.gov/efservice/tri.tri_facility/facility_name/CONTAINING/{query}/JSON",
+                //     "facility_search", "https://data.epa.gov/efservice/frs.frs_facilities/facility_name/CONTAINING/{query}/JSON",
+                //     "chemical_search", "https://data.epa.gov/efservice/srs.srs_chemicals/chem_name/CONTAINING/{query}/JSON",
+                //     "rcra_search", "https://data.epa.gov/efservice/rcra.rcra_handler/handler_name/CONTAINING/{query}/JSON",
+                //     "sdwis_search", "https://data.epa.gov/efservice/sdwis.sdwis_public_water_systems/pws_name/CONTAINING/{query}/JSON"
+                // ),
+                // CompTox Dashboard API (성분/화학물질 키워드 검색에 유용)
                 "comptox", Map.of(
                     "base", "https://comptox.epa.gov/dashboard/api",
                     "search", "https://comptox.epa.gov/dashboard/api/chemical/search",
                     "details", "https://comptox.epa.gov/dashboard/api/chemical/details",
                     "lists", "https://comptox.epa.gov/dashboard/api/chemical/lists"
                 ),
+                // Air Quality System (측정치 중심, 키워드 검색보다는 파라미터)
                 "aqs", Map.of(
                     "base", "https://aqs.epa.gov/data/api",
                     "sample_data", "https://aqs.epa.gov/data/api/sampleData/byState",
@@ -109,9 +123,10 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // FCC (Federal Communications Commission)
         Map<String, Map<String, String>> fccEndpoints = new HashMap<>();
+        // 방송국 공개 파일 — 장비인증과 별개
         fccEndpoints.put("public_files", Map.of(
             "base", "https://publicfiles.fcc.gov",
             "api", "https://publicfiles.fcc.gov/api",
@@ -121,6 +136,7 @@ public class ApiEndpointsManager {
             "file_history", "https://publicfiles.fcc.gov/api/service/file/history.json",
             "station_files", "https://publicfiles.fcc.gov/api/service/station/{callsign}/files.json"
         ));
+        // 방송 서비스 메타
         fccEndpoints.put("service_data", Map.of(
             "facility_search", "https://publicfiles.fcc.gov/api/service/facility/search/{keyword}",
             "relationship_frn", "https://publicfiles.fcc.gov/api/service/relationship/frn/{frn}",
@@ -130,6 +146,7 @@ public class ApiEndpointsManager {
             "service_eeo", "https://publicfiles.fcc.gov/api/service/{serviceType}/eeo/facilityid/{entityID}",
             "service_ownership", "https://publicfiles.fcc.gov/api/service/{serviceType}/ownership/facilityid/{entityID}"
         ));
+        // 케이블/위성 파생 데이터
         fccEndpoints.put("cable_data", Map.of(
             "cable_relationship", "https://publicfiles.fcc.gov/api/service/cable/relationship/username/{COALSID}",
             "cable_eeo", "https://publicfiles.fcc.gov/api/service/cable/eeo/{groupBy}",
@@ -153,11 +170,15 @@ public class ApiEndpointsManager {
             "file_manager", "https://publicfiles.fcc.gov/api/manager/file/id/{fileId}.{format}",
             "search_files_folders", "https://publicfiles.fcc.gov/api/manager/search/key/{searchKey}.{format}"
         ));
-        fccEndpoints.put("device_authorization", Map.of(
-            "base", "https://api.fcc.gov/device/authorization",
-            "grants", "https://api.fcc.gov/device/authorization/grants",
-            "applications", "https://api.fcc.gov/device/authorization/applications"
-        ));
+        // Device Authorization (회사/그랜티 기반으로 상품 키워드 탐색과 불일치) → 기본 비활성화 권고
+        // 필요 시 아래 블록을 복구해서 사용하세요.
+        // fccEndpoints.put("device_authorization", Map.of(
+        //     "base", "https://opendata.fcc.gov/resource/3b3k-34jp.json",
+        //     "grants", "https://opendata.fcc.gov/resource/3b3k-34jp.json",
+        //     "applications", "https://opendata.fcc.gov/resource/3b3k-34jp.json",
+        //     "search_by_grantee_code", "https://opendata.fcc.gov/resource/3b3k-34jp.json?grantee_code={code}&$limit=50",
+        //     "search_by_name", "https://opendata.fcc.gov/resource/3b3k-34jp.json?$select=grantee_code,grantee_name,state&$where=upper(grantee_name)%20like%20%27{name}%25%27&$limit=50"
+        // ));
         fccEndpoints.put("ecfs", Map.of(
             "base", "https://api.fcc.gov/ecfs",
             "proceedings", "https://api.fcc.gov/ecfs/proceedings",
@@ -169,21 +190,23 @@ public class ApiEndpointsManager {
         fccEndpoints.put("eas_equipment", Map.of(
             "base", "https://opendata.fcc.gov/api/views/"
         ));
-        
+
         agencyMap.put("fcc", new AgencyConfig(
             "FCC",
             "https://publicfiles.fcc.gov",
             false,
-            "1000/hour",
+            "Socrata throttling may apply; use X-App-Token; implement retry/backoff",
             fccEndpoints
         ));
-        
+
         // CBP (Customs and Border Protection)
+        // ⚠️ 주의: AESDirect/ACE 연동은 인증/승인 사용자만 가능. 공개 수집 대상 아님.
+        // 아래 엔드포인트는 참고용으로만 유지하고, 카탈로그 사용 시 "인증 필요"로 표기하거나 제외 권장.
         agencyMap.put("cbp", new AgencyConfig(
             "CBP",
             "https://trade.cbp.dhs.gov",
             true,
-            "1000/day",
+            "Restricted: ACE/AES credentials required (not for public harvesting)",
             Map.of(
                 "aesdirect", Map.of(
                     "test_base", "https://trade-test.cbp.dhs.gov/ace/aes/aesdirect-ui/secured",
@@ -195,26 +218,17 @@ public class ApiEndpointsManager {
                     "base", "https://www.cbp.gov/newsroom/stats/cbp-public-data-portal",
                     "trade_stats", "https://www.cbp.gov/newsroom/stats/cbp-public-data-portal",
                     "travel_stats", "https://www.cbp.gov/newsroom/stats/travel"
-                ),
-                "trade_statistics", Map.of(
-                    "base", "https://api.cbp.gov/trade/statistics",
-                    "imports", "https://api.cbp.gov/trade/statistics/imports",
-                    "exports", "https://api.cbp.gov/trade/statistics/exports",
-                    "hs_codes", "https://api.cbp.gov/trade/statistics/hs-codes"
-                ),
-                "ace_portal", Map.of(
-                    "base", "https://api.cbp.gov/ace/",
-                    "api", "https://api.cbp.gov/ace/"
                 )
+                // 참고: HS 기준 무역통계는 CBP가 아니라 Commerce(Census) API 사용 권장
             )
         ));
-        
+
         // CPSC (Consumer Product Safety Commission)
         agencyMap.put("cpsc", new AgencyConfig(
             "CPSC",
             "https://www.saferproducts.gov",
             false,
-            "1000/day",
+            "Typical public API limits",
             Map.of(
                 "saferproducts", Map.of(
                     "base", "https://www.saferproducts.gov/RestWebServices/Recall",
@@ -238,18 +252,22 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
-        // Commerce (Department of Commerce)
+
+        // Commerce (Department of Commerce) — International Trade (HS 지원)
         agencyMap.put("commerce", new AgencyConfig(
             "Commerce",
             "https://api.census.gov",
-            true,
-            "1000/day",
+            true,  // API Key 권장 (무키도 되지만 일일 호출 제한 낮음)
+            "Default ~500/day without key; higher with key",
             Map.of(
                 "trade_data", Map.of(
                     "base", "https://api.census.gov/data/timeseries/intltrade/",
-                    "imports", "https://api.census.gov/data/timeseries/intltrade/imports",
-                    "exports", "https://api.census.gov/data/timeseries/intltrade/exports"
+                    // 신규: HS 코드 기반 시계열 (월별)
+                    "imports_hs", "https://api.census.gov/data/timeseries/intltrade/imports/hs",
+                    "exports_hs", "https://api.census.gov/data/timeseries/intltrade/exports/hs",
+                    // (옵션) 항만 단위 HS (일부 공개 세부): 필요 시 사용
+                    "imports_porths", "https://api.census.gov/data/timeseries/intltrade/imports/porths",
+                    "exports_porths", "https://api.census.gov/data/timeseries/intltrade/exports/porths"
                 ),
                 "steel_import", Map.of(
                     "base", "https://www.trade.gov/steel-import-monitoring-analysis-system-sima",
@@ -261,13 +279,13 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // NTIA (National Telecommunications and Information Administration)
         agencyMap.put("ntia", new AgencyConfig(
             "NTIA",
             "https://nbam.ntia.gov",
             false,
-            "1000/day",
+            "Typical public API limits",
             Map.of(
                 "nbam_api", Map.of(
                     "base", "https://nbam.ntia.gov/api",
@@ -286,13 +304,13 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // DOT (Department of Transportation)
         agencyMap.put("dot", new AgencyConfig(
             "DOT",
             "https://data.transportation.gov",
             false,
-            "1000/day",
+            "Typical public API limits",
             Map.of(
                 "safety_data", Map.of(
                     "base", "https://data.transportation.gov",
@@ -311,13 +329,13 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // DOE (Department of Energy)
         agencyMap.put("doe", new AgencyConfig(
             "DOE",
             "https://www.osti.gov",
             false,
-            "5000/day",
+            "Typical public API limits",
             Map.of(
                 "pages_api", Map.of(
                     "base", "https://www.osti.gov/pages/api/v1",
@@ -337,13 +355,13 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // DOI (Department of the Interior)
         agencyMap.put("doi", new AgencyConfig(
             "DOI",
             "https://data.doi.gov",
             false,
-            "1000/day",
+            "Typical public API limits",
             Map.of(
                 "natural_resources", Map.of(
                     "base", "https://data.doi.gov",
@@ -363,13 +381,13 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         // DOL (Department of Labor)
         agencyMap.put("dol", new AgencyConfig(
             "DOL",
             "https://dataportal.dol.gov",
             false,
-            "1000/day",
+            "Typical public API limits",
             Map.of(
                 "data_portal", Map.of(
                     "base", "https://dataportal.dol.gov",
@@ -389,10 +407,10 @@ public class ApiEndpointsManager {
                 )
             )
         ));
-        
+
         return agencyMap;
     }
-    
+
     /**
      * 특정 기관의 엔드포인트 URL을 반환
      */
@@ -401,21 +419,21 @@ public class ApiEndpointsManager {
         if (agencyConfig == null) {
             throw new IllegalArgumentException("Agency not found: " + agency);
         }
-        
+
         Map<String, Map<String, String>> endpoints = agencyConfig.getEndpoints();
         Map<String, String> categoryEndpoints = endpoints.get(category);
         if (categoryEndpoints == null) {
             throw new IllegalArgumentException("Category not found: " + agency + "." + category);
         }
-        
+
         String endpointUrl = categoryEndpoints.get(endpoint);
         if (endpointUrl == null) {
             throw new IllegalArgumentException("Endpoint not found: " + agency + "." + category + "." + endpoint);
         }
-        
+
         return endpointUrl;
     }
-    
+
     /**
      * 특정 기관의 모든 엔드포인트를 반환
      */
@@ -426,7 +444,7 @@ public class ApiEndpointsManager {
         }
         return agencyConfig.getEndpoints();
     }
-    
+
     /**
      * 특정 기관이 API 키를 요구하는지 확인
      */
@@ -434,7 +452,7 @@ public class ApiEndpointsManager {
         AgencyConfig agencyConfig = agencies.get(agency);
         return agencyConfig != null && agencyConfig.isApiKeyRequired();
     }
-    
+
     /**
      * 특정 기관의 API 제한 정보를 반환
      */
@@ -442,7 +460,7 @@ public class ApiEndpointsManager {
         AgencyConfig agencyConfig = agencies.get(agency);
         return agencyConfig != null ? agencyConfig.getRateLimit() : "Unknown";
     }
-    
+
     /**
      * 특정 기관의 기본 URL을 반환
      */
@@ -450,14 +468,14 @@ public class ApiEndpointsManager {
         AgencyConfig agencyConfig = agencies.get(agency);
         return agencyConfig != null ? agencyConfig.getBaseUrl() : "";
     }
-    
+
     /**
      * 모든 기관 목록 반환
      */
     public List<String> getAllAgencies() {
         return agencies.keySet().stream().sorted().toList();
     }
-    
+
     @Data
     public static class AgencyConfig {
         private final String name;
@@ -465,5 +483,13 @@ public class ApiEndpointsManager {
         private final boolean apiKeyRequired;
         private final String rateLimit;
         private final Map<String, Map<String, String>> endpoints;
+
+        public AgencyConfig(String name, String baseUrl, boolean apiKeyRequired, String rateLimit, Map<String, Map<String, String>> endpoints) {
+            this.name = name;
+            this.baseUrl = baseUrl;
+            this.apiKeyRequired = apiKeyRequired;
+            this.rateLimit = rateLimit;
+            this.endpoints = endpoints;
+        }
     }
 }

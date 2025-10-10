@@ -13,15 +13,22 @@ public class RestTemplateConfig {
     public RestTemplate restTemplate() {
         RestTemplate restTemplate = new RestTemplate();
         
-        // 타임아웃 설정 (AI 분석은 시간이 오래 걸릴 수 있음)
+        // 타임아웃 설정 (백그라운드 AI 분석: Tavily Search + 스크래핑 + GPT)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5000);  // 5초 연결 타임아웃
-        factory.setReadTimeout(30000);    // 30초 읽기 타임아웃
+        factory.setConnectTimeout(10000);   // 10초 연결 타임아웃
+        factory.setReadTimeout(1200000);     // 600초 (10분) 읽기 타임아웃 - 백그라운드 작업
         
         restTemplate.setRequestFactory(factory);
         
         // JSON 메시지 컨버터 추가
         restTemplate.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
+        
+        // 공통 헤더 인터셉터 추가 (EPA CompTox, CPSC 등 헤더 요구 API 대응)
+        restTemplate.getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().add("Accept", "application/json");
+            request.getHeaders().add("User-Agent", "LawGenie-Backend/1.0");
+            return execution.execute(request, body);
+        });
         
         return restTemplate;
     }
