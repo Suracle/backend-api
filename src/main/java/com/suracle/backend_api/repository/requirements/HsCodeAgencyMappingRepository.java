@@ -37,8 +37,9 @@ public interface HsCodeAgencyMappingRepository extends JpaRepository<HsCodeAgenc
     
     /**
      * 특정 기관을 포함하는 매핑 조회
+     * JSONB 필드에서 검색하기 위해 네이티브 쿼리 사용
      */
-    @Query("SELECT h FROM HsCodeAgencyMapping h WHERE h.recommendedAgencies LIKE %:agency%")
+    @Query(value = "SELECT * FROM hs_code_agency_mappings WHERE recommended_agencies::text LIKE CONCAT('%', :agency, '%')", nativeQuery = true)
     List<HsCodeAgencyMapping> findByAgency(@Param("agency") String agency);
     
     /**

@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -34,8 +36,9 @@ public class HsCodeAgencyMapping {
     @Column(name = "product_description", columnDefinition = "TEXT")
     private String productDescription;
     
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "recommended_agencies", columnDefinition = "JSONB", nullable = false)
-    private String recommendedAgencies; // JSON 문자열로 저장
+    private String recommendedAgencies; // JSON 문자열로 저장 (Hibernate가 자동 변환)
     
     @Column(name = "confidence_score", precision = 3, scale = 2)
     private BigDecimal confidenceScore;

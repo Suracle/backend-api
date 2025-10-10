@@ -23,6 +23,33 @@ import org.springframework.web.client.RestTemplate;
 
  
 
+/**
+ * 요건 API 프로빙 및 테스트 컨트롤러
+ * 
+ * <p>이 컨트롤러는 정부 API 연결 상태를 테스트하고 디버깅 정보를 제공합니다.
+ * 
+ * <p>주요 기능:
+ * <ul>
+ *   <li>GET /api/requirements/probe/all: 모든 정부 API 테스트</li>
+ *   <li>API 연결 상태 확인 (HEAD 요청)</li>
+ *   <li>실제 데이터 수신 여부 확인</li>
+ *   <li>Citations 생성 (시도한 URL 목록)</li>
+ *   <li>JSON 파일로 저장 가능 (save=true)</li>
+ * </ul>
+ * 
+ * <p>파라미터:
+ * <ul>
+ *   <li>product: 제품명 (한글/영문)</li>
+ *   <li>hs: HS 코드</li>
+ *   <li>includePayloads: 응답 데이터 포함 여부 (기본: false)</li>
+ *   <li>debug: 디버깅 정보 포함 여부 (기본: false)</li>
+ *   <li>save: JSON 파일 저장 여부 (기본: false)</li>
+ * </ul>
+ * 
+ * <p>주의: 이 컨트롤러는 개발/테스트 목적으로만 사용하며 프로덕션에서는 비활성화 권장합니다.
+ * 
+ * @see RequirementsApiClient
+ */
 @RestController
 @RequestMapping("/api/requirements/probe")
 @RequiredArgsConstructor

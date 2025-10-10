@@ -35,7 +35,7 @@ public class ProductAnalysisCache extends BaseEntity {
   @JdbcTypeCode(SqlTypes.JSON)
   private JsonNode analysisResult;
 
-  @Column(name = "sources", nullable = false, columnDefinition = "json")
+  @Column(name = "sources", nullable = true, columnDefinition = "json")
   @JdbcTypeCode(SqlTypes.JSON)
   private JsonNode sources;
 

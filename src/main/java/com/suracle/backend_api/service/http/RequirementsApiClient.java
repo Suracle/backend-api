@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -84,8 +85,18 @@ public class RequirementsApiClient {
                 return Optional.of(response.getBody());
             }
             
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            // 4xx 에러는 간단히 로깅
+            log.warn("EPA CompTox API 호출 실패 ({}): {}", e.getStatusCode(), e.getMessage().split("\n")[0]);
+        } catch (org.springframework.web.client.RestClientException e) {
+            // HTML 응답 등 파싱 실패는 간단히 로깅
+            String shortMsg = e.getMessage();
+            if (shortMsg != null && shortMsg.length() > 100) {
+                shortMsg = shortMsg.substring(0, 100) + "...";
+            }
+            log.warn("EPA CompTox API 응답 파싱 실패: {}", shortMsg);
         } catch (Exception e) {
-            log.error("EPA CompTox API 호출 실패: {}", e.getMessage());
+            log.error("EPA CompTox API 호출 중 예외: {}", e.getClass().getSimpleName());
         }
         
         return Optional.empty();
@@ -143,7 +154,7 @@ public class RequirementsApiClient {
     }
 
     /**
-     * FDA Food Enforcement API 호출
+     * FDA Food Enforcement API 호출 (단일 키워드)
      */
     public Optional<JsonNode> callOpenFdaFoodEnforcement(String productName) {
         try {
@@ -161,6 +172,42 @@ public class RequirementsApiClient {
 
         } catch (Exception e) {
             log.error("FDA Food Enforcement API 호출 실패: {}", e.getMessage());
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * FDA Food Enforcement API 호출 (OR 쿼리 - 여러 키워드)
+     * 예: ["serum", "vitamin", "cosmetic"] → product_description:serum OR product_description:vitamin OR product_description:cosmetic
+     */
+    public Optional<JsonNode> callOpenFdaFoodEnforcementWithKeywords(List<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            // OR 쿼리 생성 (공백은 +로 인코딩)
+            String orQuery = keywords.stream()
+                    .map(kw -> "product_description:" + kw)
+                    .collect(java.util.stream.Collectors.joining("+OR+"));
+
+            String url = "https://api.fda.gov/food/enforcement.json?search=" + orQuery + "&limit=20";
+
+            log.info("🔍 FDA OR 쿼리 시도: {}", orQuery);
+            log.debug("📡 FDA URL: {}", url);
+
+            ResponseEntity<JsonNode> response = restTemplate.getForEntity(url, JsonNode.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode body = response.getBody();
+                int resultCount = body.has("results") ? body.get("results").size() : 0;
+                log.info("✅ FDA OR 쿼리 성공: {} 결과", resultCount);
+                return Optional.of(body);
+            }
+
+        } catch (Exception e) {
+            log.error("❌ FDA Food Enforcement OR 쿼리 실패: {}", e.getMessage());
         }
 
         return Optional.empty();
@@ -425,8 +472,16 @@ public class RequirementsApiClient {
                 return Optional.of(response.getBody());
             }
             
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            log.warn("Census API 호출 실패 ({}): {}", e.getStatusCode(), e.getMessage().split("\n")[0]);
+        } catch (org.springframework.web.client.RestClientException e) {
+            String shortMsg = e.getMessage();
+            if (shortMsg != null && shortMsg.length() > 100) {
+                shortMsg = shortMsg.substring(0, 100) + "...";
+            }
+            log.warn("Census API 응답 파싱 실패: {}", shortMsg);
         } catch (Exception e) {
-            log.error("Census International Trade HS API 호출 실패: {}", e.getMessage());
+            log.error("Census API 호출 중 예외: {}", e.getClass().getSimpleName());
         }
         
         return Optional.empty();

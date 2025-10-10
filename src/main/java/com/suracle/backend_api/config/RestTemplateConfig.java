@@ -13,10 +13,10 @@ public class RestTemplateConfig {
     public RestTemplate restTemplate() {
         RestTemplate restTemplate = new RestTemplate();
         
-        // 타임아웃 설정 (AI 분석은 시간이 오래 걸릴 수 있음)
+        // 타임아웃 설정 (백그라운드 AI 분석: Tavily Search + 스크래핑 + GPT)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5000);  // 5초 연결 타임아웃
-        factory.setReadTimeout(30000);    // 30초 읽기 타임아웃
+        factory.setConnectTimeout(10000);   // 10초 연결 타임아웃
+        factory.setReadTimeout(1200000);     // 600초 (10분) 읽기 타임아웃 - 백그라운드 작업
         
         restTemplate.setRequestFactory(factory);
         

@@ -14,8 +14,19 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +35,11 @@ import java.util.stream.Collectors;
 public class HsCodeAgencyMappingService {
     
     private final HsCodeAgencyMappingRepository repository;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    @Value("${ai.requirements-analysis.url:http://localhost:8000}")
+    private String aiEngineUrl;
     
     /**
      * HS코드로 기관 매핑 조회
@@ -203,6 +219,136 @@ public class HsCodeAgencyMappingService {
                 .mapToDouble(m -> m.getConfidenceScore().doubleValue())
                 .average()
                 .orElse(0.0);
+    }
+    
+    /**
+     * AI를 사용하여 HS 코드 → 기관 매핑 자동 생성 및 DB 저장
+     */
+    public HsCodeAgencyMappingDto generateAndSaveMappingWithAi(
+            String hsCode, 
+            String productName, 
+            String productCategory
+    ) {
+        try {
+            log.info("🤖 AI 기관 매핑 생성 시작 - HS: {}, 제품: {}", hsCode, productName);
+            
+            // AI Engine API 호출
+            Map<String, Object> aiResult = callAiEngineForMapping(hsCode, productName, productCategory);
+            
+            if (aiResult == null || aiResult.containsKey("error")) {
+                log.warn("⚠️ AI 매핑 생성 실패, 기본 매핑 사용");
+                return null;
+            }
+            
+            // AI 결과를 DB에 저장
+            HsCodeAgencyMapping mapping = HsCodeAgencyMapping.builder()
+                    .hsCode(hsCode)
+                    .productCategory(productCategory != null ? productCategory : (String) aiResult.get("product_category"))
+                    .productDescription(productName)
+                    .recommendedAgencies(convertAgenciesToJson(aiResult))
+                    .confidenceScore(BigDecimal.valueOf((Double) aiResult.getOrDefault("confidence_score", 0.5)))
+                    .usageCount(1)
+                    .lastUsedAt(LocalDateTime.now())
+                    .build();
+            
+            HsCodeAgencyMapping saved = repository.save(mapping);
+            
+            log.info("✅ AI 기관 매핑 저장 완료 - ID: {}, 신뢰도: {}", 
+                    saved.getId(), saved.getConfidenceScore());
+            
+            return convertToDto(saved);
+            
+        } catch (Exception e) {
+            log.error("❌ AI 기관 매핑 생성 중 오류: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * AI Engine API 호출하여 매핑 생성
+     */
+    private Map<String, Object> callAiEngineForMapping(
+            String hsCode, 
+            String productName, 
+            String productCategory
+    ) {
+        try {
+            String url = aiEngineUrl + "/requirements/generate-agency-mapping";
+            
+            Map<String, Object> requestBody = new java.util.HashMap<>();
+            requestBody.put("hs_code", hsCode);
+            requestBody.put("product_name", productName != null ? productName : "");
+            requestBody.put("product_category", productCategory != null ? productCategory : "");
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            
+            log.debug("📡 AI Engine 호출: {}", url);
+            
+            @SuppressWarnings("unchecked")
+            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
+                    url,
+                    entity,
+                    (Class<Map<String, Object>>) (Class<?>) Map.class
+            );
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                log.info("✅ AI Engine 응답 수신");
+                return response.getBody();
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ AI Engine 호출 실패: {}", e.getMessage());
+        }
+        
+        return null;
+    }
+    
+    /**
+     * AI 결과를 JSON 문자열로 변환
+     */
+    private String convertAgenciesToJson(Map<String, Object> aiResult) {
+        try {
+            Map<String, Object> agenciesData = new java.util.HashMap<>();
+            agenciesData.put("primary_agencies", aiResult.get("primary_agencies"));
+            agenciesData.put("secondary_agencies", aiResult.get("secondary_agencies"));
+            agenciesData.put("search_keywords", aiResult.get("search_keywords"));
+            agenciesData.put("key_requirements", aiResult.get("key_requirements"));
+            agenciesData.put("reasoning", aiResult.get("reasoning"));
+            
+            return objectMapper.writeValueAsString(agenciesData);
+        } catch (Exception e) {
+            log.error("❌ JSON 변환 실패: {}", e.getMessage());
+            return "{}";
+        }
+    }
+    
+    /**
+     * HS 코드 매핑 조회 또는 AI 생성
+     * 
+     * 1. DB에서 조회
+     * 2. 없으면 AI로 생성 후 저장
+     */
+    public HsCodeAgencyMappingDto findOrGenerateMapping(
+            String hsCode, 
+            String productName, 
+            String productCategory
+    ) {
+        // 1. DB에서 조회
+        Optional<HsCodeAgencyMappingDto> existing = findByHsCodeAndProduct(hsCode, productName);
+        
+        if (existing.isPresent()) {
+            log.info("✅ 기존 매핑 사용 - HS: {}", hsCode);
+            // 사용 횟수 증가
+            updateUsageCount(hsCode, productName);
+            return existing.get();
+        }
+        
+        // 2. AI로 생성
+        log.info("🤖 AI 매핑 생성 필요 - HS: {}", hsCode);
+        return generateAndSaveMappingWithAi(hsCode, productName, productCategory);
     }
     
     /**

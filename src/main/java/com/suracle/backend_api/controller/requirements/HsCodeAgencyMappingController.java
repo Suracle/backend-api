@@ -168,6 +168,76 @@ public class HsCodeAgencyMappingController {
     }
     
     /**
+     * AI를 사용하여 HS 코드 매핑 생성
+     */
+    @PostMapping("/generate")
+    public ResponseEntity<HsCodeAgencyMappingDto> generateMappingWithAi(
+            @RequestBody GenerateMappingRequest request
+    ) {
+        try {
+            log.info("🤖 AI 매핑 생성 요청 - HS: {}, 제품: {}", request.getHsCode(), request.getProductName());
+            
+            HsCodeAgencyMappingDto result = service.generateAndSaveMappingWithAi(
+                    request.getHsCode(),
+                    request.getProductName(),
+                    request.getProductCategory()
+            );
+            
+            if (result != null) {
+                return ResponseEntity.ok(result);
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+            
+        } catch (Exception e) {
+            log.error("AI 매핑 생성 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * HS 코드 매핑 조회 또는 AI 생성 (자동)
+     */
+    @GetMapping("/find-or-generate")
+    public ResponseEntity<HsCodeAgencyMappingDto> findOrGenerateMapping(
+            @RequestParam String hsCode,
+            @RequestParam(required = false) String productName,
+            @RequestParam(required = false) String productCategory
+    ) {
+        try {
+            log.info("🔍 매핑 조회 또는 생성 - HS: {}", hsCode);
+            
+            HsCodeAgencyMappingDto result = service.findOrGenerateMapping(
+                    hsCode,
+                    productName != null ? productName : "",
+                    productCategory != null ? productCategory : ""
+            );
+            
+            if (result != null) {
+                return ResponseEntity.ok(result);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+            
+        } catch (Exception e) {
+            log.error("매핑 조회/생성 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * AI 매핑 생성 요청 DTO
+     */
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    static class GenerateMappingRequest {
+        private String hsCode;
+        private String productName;
+        private String productCategory;
+    }
+    
+    /**
      * 사용 횟수 업데이트 요청 DTO
      */
     @lombok.Data

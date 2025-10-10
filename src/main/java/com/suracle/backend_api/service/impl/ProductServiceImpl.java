@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -635,12 +636,15 @@ public class ProductServiceImpl implements ProductService {
         try {
             // llm_summary에서 confidence_score 추출 (우선순위 1)
             if (analysisResult.containsKey("llm_summary")) {
-                Map<?, ?> llmSummary = (Map<?, ?>) analysisResult.get("llm_summary");
-                if (llmSummary.containsKey("confidence_score")) {
-                    Object score = llmSummary.get("confidence_score");
-                    if (score instanceof Number) {
-                        double confidence = ((Number) score).doubleValue();
-                        return confidence > 0.0 ? confidence : 0.85; // 기본값 0.85
+                Object llmSummaryObj = analysisResult.get("llm_summary");
+                if (llmSummaryObj instanceof Map) {
+                    Map<?, ?> llmSummary = (Map<?, ?>) llmSummaryObj;
+                    if (llmSummary.containsKey("confidence_score")) {
+                        Object score = llmSummary.get("confidence_score");
+                        if (score instanceof Number) {
+                            double confidence = ((Number) score).doubleValue();
+                            return confidence > 0.0 ? confidence : 0.85; // 기본값 0.85
+                        }
                     }
                 }
             }
@@ -664,11 +668,12 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
             
-            // 기본값: requirements 분석은 기본적으로 높은 신뢰도
-            return 0.85;
+            // 기본값: requirements 분석은 기본적으로 중간 신뢰도
+            log.debug("신뢰도 점수 없음, 기본값 0.75 사용");
+            return 0.75;
         } catch (Exception e) {
-            log.warn("신뢰도 점수 추출 실패: {}", e.getMessage());
-            return 0.85; // 오류 시에도 기본값 0.85
+            log.warn("⚠️ 신뢰도 점수 추출 실패 (기본값 사용): {}", e.getMessage());
+            return 0.75; // 오류 시에도 기본값 0.75
         }
     }
     
@@ -694,7 +699,20 @@ public class ProductServiceImpl implements ProductService {
             if (analysisResult.containsKey("sources")) {
                 Object sourcesObj = analysisResult.get("sources");
                 if (sourcesObj instanceof List) {
-                    return (List<String>) sourcesObj;
+                    List<?> sourcesList = (List<?>) sourcesObj;
+                    return sourcesList.stream()
+                        .map((Object obj) -> {
+                            if (obj instanceof String) {
+                                return (String) obj;
+                            } else if (obj instanceof Map) {
+                                // 객체인 경우 URL 추출
+                                Map<?, ?> sourceMap = (Map<?, ?>) obj;
+                                Object url = sourceMap.get("url");
+                                return url != null ? url.toString() : obj.toString();
+                            }
+                            return obj.toString();
+                        })
+                        .collect(Collectors.toList());
                 }
             }
             if (analysisResult.containsKey("metadata")) {
@@ -702,20 +720,27 @@ public class ProductServiceImpl implements ProductService {
                 if (metadata.containsKey("sources")) {
                     Object sourcesObj = metadata.get("sources");
                     if (sourcesObj instanceof List) {
-                        return (List<String>) sourcesObj;
+                        List<?> sourcesList = (List<?>) sourcesObj;
+                        return sourcesList.stream()
+                            .map((Object obj) -> {
+                                if (obj instanceof String) {
+                                    return (String) obj;
+                                } else if (obj instanceof Map) {
+                                    Map<?, ?> sourceMap = (Map<?, ?>) obj;
+                                    Object url = sourceMap.get("url");
+                                    return url != null ? url.toString() : obj.toString();
+                                }
+                                return obj.toString();
+                            })
+                            .collect(Collectors.toList());
                     }
                 }
             }
         } catch (Exception e) {
-            log.warn("sources 추출 실패: {}", e.getMessage());
+            log.warn("⚠️ sources 추출 실패 (빈 리스트 반환): {}", e.getMessage());
         }
         
-        // 기본값 반환 - 요구사항 분석용 일반적인 소스들
-        return List.of(
-            "https://www.fda.gov/cosmetics/cosmetics-laws-regulations",
-            "https://www.ecfr.gov/current/title-21/chapter-I/subchapter-G/part-701",
-            "https://www.cbp.gov/trade/programs-administration/trade-support-and-monitoring",
-            "서버 시작 시 자동 분석 실행"
-        );
+        // 기본값 반환 - 빈 리스트 (AI Engine이 citations 제공)
+        return List.of();
     }
 }

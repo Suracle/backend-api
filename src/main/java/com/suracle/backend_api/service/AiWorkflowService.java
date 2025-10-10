@@ -158,6 +158,8 @@ public class AiWorkflowService {
             requestData.put("product_name", product.getProductName());
             requestData.put("product_description", product.getDescription() != null ? product.getDescription() : "");
             requestData.put("target_country", "US");
+            requestData.put("force_refresh", true);  // 캐시 무시하고 새로 분석
+            requestData.put("is_new_product", false);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
