@@ -6,7 +6,7 @@ import com.suracle.backend_api.dto.chat.ChatSessionRequestDto;
 import com.suracle.backend_api.dto.chat.ChatSessionResponseDto;
 import com.suracle.backend_api.entity.chat.enums.ChatSessionStatus;
 import com.suracle.backend_api.entity.chat.enums.ChatSessionType;
-import com.suracle.backend_api.service.ChatService;
+import com.suracle.backend_api.service.ChatService2;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,10 +26,11 @@ import java.util.List;
 @Slf4j
 public class ChatController {
 
-    private final ChatService chatService;
+    private final ChatService2 chatService;
 
     /**
      * 새 채팅 세션 생성
+     * 
      * @param requestDto 세션 생성 요청 정보
      * @return 생성된 세션 정보
      */
@@ -50,6 +51,7 @@ public class ChatController {
 
     /**
      * 세션 조회
+     * 
      * @param sessionId 세션 ID
      * @return 세션 정보
      */
@@ -70,7 +72,8 @@ public class ChatController {
 
     /**
      * 사용자의 활성 세션 조회
-     * @param userId 사용자 ID
+     * 
+     * @param userId      사용자 ID
      * @param sessionType 세션 타입 (선택사항)
      * @return 활성 세션 목록
      */
@@ -90,8 +93,9 @@ public class ChatController {
 
     /**
      * 세션 상태 업데이트
-     * @param sessionId 세션 ID
-     * @param status 새로운 상태
+     * 
+     * @param sessionId   세션 ID
+     * @param status      새로운 상태
      * @param sessionData 세션 데이터 (선택사항)
      * @return 업데이트된 세션 정보
      */
@@ -115,7 +119,8 @@ public class ChatController {
 
     /**
      * 메시지 전송
-     * @param sessionId 세션 ID
+     * 
+     * @param sessionId  세션 ID
      * @param requestDto 메시지 전송 요청 정보
      * @return 전송된 메시지 정보
      */
@@ -125,10 +130,10 @@ public class ChatController {
             @Valid @RequestBody ChatMessageRequestDto requestDto) {
         try {
             log.info("메시지 전송 요청 - 세션 ID: {}, 발신자: {}", sessionId, requestDto.getSenderType());
-            
+
             // 세션 ID 설정
             requestDto.setSessionId(sessionId);
-            
+
             ChatMessageResponseDto response = chatService.sendMessage(requestDto);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
@@ -142,10 +147,11 @@ public class ChatController {
 
     /**
      * 세션의 메시지 목록 조회 (페이징)
+     * 
      * @param sessionId 세션 ID
-     * @param page 페이지 번호 (기본값: 0)
-     * @param size 페이지 크기 (기본값: 20)
-     * @param sort 정렬 기준 (기본값: createdAt,asc)
+     * @param page      페이지 번호 (기본값: 0)
+     * @param size      페이지 크기 (기본값: 20)
+     * @param sort      정렬 기준 (기본값: createdAt,asc)
      * @return 메시지 목록
      */
     @GetMapping("/sessions/{sessionId}/messages")
@@ -156,12 +162,13 @@ public class ChatController {
             @RequestParam(defaultValue = "createdAt,asc") String sort) {
         try {
             log.info("메시지 목록 조회 요청 - 세션 ID: {}, 페이지: {}, 크기: {}", sessionId, page, size);
-            
+
             String[] sortParams = sort.split(",");
-            Sort.Direction direction = sortParams.length > 1 && "desc".equalsIgnoreCase(sortParams[1]) 
-                    ? Sort.Direction.DESC : Sort.Direction.ASC;
+            Sort.Direction direction = sortParams.length > 1 && "desc".equalsIgnoreCase(sortParams[1])
+                    ? Sort.Direction.DESC
+                    : Sort.Direction.ASC;
             Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortParams[0]));
-            
+
             Page<ChatMessageResponseDto> responses = chatService.getMessages(sessionId, pageable);
             return ResponseEntity.ok(responses);
         } catch (IllegalArgumentException e) {
@@ -175,6 +182,7 @@ public class ChatController {
 
     /**
      * 세션의 모든 메시지 조회 (페이징 없이)
+     * 
      * @param sessionId 세션 ID
      * @return 메시지 목록
      */
@@ -195,7 +203,8 @@ public class ChatController {
 
     /**
      * AI 응답 생성
-     * @param sessionId 세션 ID
+     * 
+     * @param sessionId   세션 ID
      * @param userMessage 사용자 메시지
      * @return AI 응답 메시지
      */
@@ -218,6 +227,7 @@ public class ChatController {
 
     /**
      * 만료된 데이터 정리 (관리자용)
+     * 
      * @param expiredHours 만료 시간 (시간 단위, 기본값: 24)
      * @return 정리된 항목 수
      */
