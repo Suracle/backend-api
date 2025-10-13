@@ -40,10 +40,10 @@ public class HsCodeAnalysisServiceImpl implements HsCodeAnalysisService {
     public HsCodeAnalysisServiceImpl(HsCodeAnalysisRepository hsCodeAnalysisRepository) {
         this.hsCodeAnalysisRepository = hsCodeAnalysisRepository;
         
-        // RestTemplate 설정 (90초 타임아웃)
+        // RestTemplate 설정 (180초 타임아웃 - LLM + 판례 검색 고려)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(90));
-        factory.setReadTimeout(Duration.ofSeconds(90));
+        factory.setConnectTimeout(Duration.ofSeconds(180));
+        factory.setReadTimeout(Duration.ofSeconds(180));
         
         this.restTemplate = new RestTemplate(factory);
     }

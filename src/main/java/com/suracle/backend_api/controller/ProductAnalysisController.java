@@ -546,8 +546,8 @@ public class ProductAnalysisController {
             Double confidenceScore = (Double) request.getOrDefault("confidenceScore", 0.95);
             Boolean isValid = (Boolean) request.getOrDefault("isValid", true);
             
-            // HS코드로 상품 찾기
-            Optional<Product> productOpt = productRepository.findByHsCode(hsCode);
+            // HS코드로 상품 찾기 (같은 HS 코드를 가진 상품이 여러 개일 경우 첫 번째 것 사용)
+            Optional<Product> productOpt = productRepository.findFirstByHsCode(hsCode);
             if (productOpt.isEmpty()) {
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", false);
@@ -607,8 +607,8 @@ public class ProductAnalysisController {
         try {
             log.info("분석 캐시 삭제 요청 - HS코드: {}, 분석타입: {}", hs_code, analysis_type);
             
-            // HS코드로 상품 찾기
-            Optional<Product> productOpt = productRepository.findByHsCode(hs_code);
+            // HS코드로 상품 찾기 (같은 HS 코드를 가진 상품이 여러 개일 경우 첫 번째 것 사용)
+            Optional<Product> productOpt = productRepository.findFirstByHsCode(hs_code);
             if (productOpt.isEmpty()) {
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", false);

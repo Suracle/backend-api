@@ -36,6 +36,7 @@ public class HsCodeServiceImpl implements HsCodeService {
                 .description(hsCode.getDescription())
                 .usTariffRate(hsCode.getUsTariffRate())
                 .reasoning(hsCode.getReasoning())
+                .tariffReasoning(hsCode.getTariffReasoning())  // 관세율 적용 근거 추가
                 .lastUpdated(hsCode.getLastUpdated())
                 .build();
     }
