@@ -16,7 +16,7 @@ public class HsCodeAnalysisResponseDto {
     
     private String analysisSessionId;
     private List<HsCodeSuggestionDto> suggestions;
-    private Double processingTime;
+    private String processingTime;  // "0.33s" 형식
     
     @Data
     @Builder

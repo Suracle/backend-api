@@ -18,5 +18,6 @@ public class HsCodeResponseDto {
     private String description;
     private BigDecimal usTariffRate;
     private String reasoning;
+    private String tariffReasoning;  // 관세율 적용 근거 추가
     private LocalDateTime lastUpdated;
 }

@@ -329,6 +329,117 @@ public class RequirementServiceImpl implements RequirementService {
             log.info("✅ 데이터 변환 완료 - actions: {}, docs: {}, steps: {}",
                     criticalActionsStr.size(), requiredDocumentsStr.size(), complianceStepsStr.size());
             
+            // Phase 2-4 전문 분석 결과 추출
+            Object detailedRegulations = null;
+            Object testingProcedures = null;
+            Object penalties = null;
+            Object validity = null;
+            Object crossValidation = null;
+            
+            if (aiResult.containsKey("detailed_regulations")) {
+                detailedRegulations = aiResult.get("detailed_regulations");
+                log.debug("📋 세부 규정 데이터 추출");
+            }
+            if (aiResult.containsKey("testing_procedures")) {
+                testingProcedures = aiResult.get("testing_procedures");
+                log.debug("🧪 검사 절차 데이터 추출");
+            }
+            if (aiResult.containsKey("penalties")) {
+                penalties = aiResult.get("penalties");
+                log.debug("⚖️ 처벌 데이터 추출");
+            }
+            if (aiResult.containsKey("validity")) {
+                validity = aiResult.get("validity");
+                log.debug("⏰ 유효기간 데이터 추출");
+            }
+            if (aiResult.containsKey("cross_validation")) {
+                crossValidation = aiResult.get("cross_validation");
+                log.debug("🔍 교차 검증 데이터 추출");
+            }
+            
+            // 판례 검증 및 통합 신뢰도 추출 (신규 - 2025-10-12)
+            Object precedentValidation = null;
+            Object overallConfidence = null;
+            Object verificationSummary = null;
+            if (aiResult.containsKey("precedent_validation")) {
+                precedentValidation = aiResult.get("precedent_validation");
+                log.debug("📜 판례 검증 데이터 추출");
+            }
+            if (aiResult.containsKey("overall_confidence")) {
+                overallConfidence = aiResult.get("overall_confidence");
+                log.debug("🎯 통합 신뢰도 데이터 추출");
+            }
+            if (aiResult.containsKey("verification_summary")) {
+                verificationSummary = aiResult.get("verification_summary");
+                log.debug("✅ 검증 요약 데이터 추출");
+            }
+            
+            // 확장 필드 추출 (신규 - 2025-10-12)
+            Object executionChecklist = null;
+            Object costBreakdown = null;
+            Object riskMatrix = null;
+            Object complianceScore = null;
+            Object marketAccess = null;
+            Object estimatedCosts = null;
+            List<Object> riskFactors = new ArrayList<>();
+            List<Object> recommendations = new ArrayList<>();
+            Object timelineDetail = null;
+            List<Object> labelingRequirements = new ArrayList<>();
+            List<Object> testingRequirementsList = new ArrayList<>();
+            List<Object> prohibitedSubstances = new ArrayList<>();
+            List<Object> priorNotifications = new ArrayList<>();
+            List<Object> exemptions = new ArrayList<>();
+            
+            // llm_summary에서 확장 필드 추출
+            @SuppressWarnings("unchecked")
+            Map<String, Object> llmSummaryForExtended = (Map<String, Object>) aiResult.get("llm_summary");
+            if (llmSummaryForExtended != null) {
+                executionChecklist = llmSummaryForExtended.get("execution_checklist");
+                costBreakdown = llmSummaryForExtended.get("cost_breakdown");
+                riskMatrix = llmSummaryForExtended.get("risk_matrix");
+                complianceScore = llmSummaryForExtended.get("compliance_score");
+                marketAccess = llmSummaryForExtended.get("market_access");
+                estimatedCosts = llmSummaryForExtended.get("estimated_costs");
+                timelineDetail = llmSummaryForExtended.get("timeline");
+                
+                // 리스트 필드
+                if (llmSummaryForExtended.containsKey("risk_factors")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> risks = (List<Object>) llmSummaryForExtended.get("risk_factors");
+                    if (risks != null) riskFactors.addAll(risks);
+                }
+                if (llmSummaryForExtended.containsKey("recommendations")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> recs = (List<Object>) llmSummaryForExtended.get("recommendations");
+                    if (recs != null) recommendations.addAll(recs);
+                }
+                if (llmSummaryForExtended.containsKey("labeling_requirements")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> labeling = (List<Object>) llmSummaryForExtended.get("labeling_requirements");
+                    if (labeling != null) labelingRequirements.addAll(labeling);
+                }
+                if (llmSummaryForExtended.containsKey("testing_requirements")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> testing = (List<Object>) llmSummaryForExtended.get("testing_requirements");
+                    if (testing != null) testingRequirementsList.addAll(testing);
+                }
+                if (llmSummaryForExtended.containsKey("prohibited_restricted_substances")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> substances = (List<Object>) llmSummaryForExtended.get("prohibited_restricted_substances");
+                    if (substances != null) prohibitedSubstances.addAll(substances);
+                }
+                if (llmSummaryForExtended.containsKey("prior_notifications")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> notifications = (List<Object>) llmSummaryForExtended.get("prior_notifications");
+                    if (notifications != null) priorNotifications.addAll(notifications);
+                }
+                if (llmSummaryForExtended.containsKey("exemptions")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> exemps = (List<Object>) llmSummaryForExtended.get("exemptions");
+                    if (exemps != null) exemptions.addAll(exemps);
+                }
+            }
+            
             return RequirementAnalysisResponse.builder()
                     .productId(String.valueOf(productId))
                     .productName(productName)
@@ -341,6 +452,31 @@ public class RequirementServiceImpl implements RequirementService {
                     .confidenceScore(confidenceScore)
                     .isValid(isValid)
                     .pendingAnalysis(isValid ? "AI 분석 완료" : analysisSummary.toString())
+                    // Phase 2-4 전문 분석 결과 추가
+                    .detailedRegulations(detailedRegulations)
+                    .testingProcedures(testingProcedures)
+                    .penalties(penalties)
+                    .validity(validity)
+                    .crossValidation(crossValidation)
+                    // 판례 검증 및 통합 신뢰도 추가 (신규 - 2025-10-12)
+                    .precedentValidation(precedentValidation)
+                    .overallConfidence(overallConfidence)
+                    .verificationSummary(verificationSummary)
+                    // 확장 필드 추가 (신규 - 2025-10-12)
+                    .executionChecklist(executionChecklist)
+                    .costBreakdown(costBreakdown)
+                    .riskMatrix(riskMatrix)
+                    .complianceScore(complianceScore)
+                    .marketAccess(marketAccess)
+                    .estimatedCosts(estimatedCosts)
+                    .riskFactors(riskFactors.isEmpty() ? null : riskFactors)
+                    .recommendations(recommendations.isEmpty() ? null : recommendations)
+                    .timelineDetail(timelineDetail)
+                    .labelingRequirements(labelingRequirements.isEmpty() ? null : labelingRequirements)
+                    .testingRequirements(testingRequirementsList.isEmpty() ? null : testingRequirementsList)
+                    .prohibitedRestrictedSubstances(prohibitedSubstances.isEmpty() ? null : prohibitedSubstances)
+                    .priorNotifications(priorNotifications.isEmpty() ? null : priorNotifications)
+                    .exemptions(exemptions.isEmpty() ? null : exemptions)
                     .build();
                     
         } catch (Exception e) {

@@ -72,8 +72,9 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     /**
      * HS코드로 상품 조회 (AI 엔진용)
+     * 같은 HS 코드를 가진 상품이 여러 개일 경우 첫 번째 것을 반환
      */
-    Optional<Product> findByHsCode(String hsCode);
+    Optional<Product> findFirstByHsCode(String hsCode);
 
     /**
      * 활성 상태이고 HS코드가 있는 상품들 조회 (서버 시작 시 분석용)
